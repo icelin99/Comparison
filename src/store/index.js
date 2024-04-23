@@ -4,6 +4,7 @@ export default createStore({
     state: {
         selectSubmitted: false,
         filterData: [],
+        currentPage: 1,
     },
     mutations: {
         set_selectSubmitted(state, data) {
@@ -11,6 +12,16 @@ export default createStore({
         },
         set_filterData(state, data) {
             state.filterData = data;
+        },
+        prevItem(state) {
+            if(state.currentPage > 1) {
+                state.currentPage--;
+            }
+        },
+        nextItem(state) {
+            if(state.currentPage < state.filterData.length) {
+                state.currentPage++;
+            }
         }
     },
     actions: {
@@ -24,5 +35,6 @@ export default createStore({
     getters: {
         selectSubmitted: state => state.selectSubmitted,
         filterData: state => state.filterData,
+        currentData: state => state.filterData[state.currentPage-1]
     }
 })

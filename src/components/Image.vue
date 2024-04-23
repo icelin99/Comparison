@@ -9,16 +9,26 @@
 </template>
 
 <script>
-
+import {mapGetters} from "vuex"
 export default {
     name: 'App',
     components: {
+    },
+    computed: {
+        ...mapGetters(["filterData"])
+    },
+    watch: {
+        filterData(newVal) {
+            console.log("get filter data");
+            this.data = newVal;
+        }
     },
     data() {
         return {
             imagePath: "/assets/scenery.jpeg",
             question: "How is the view in this picture?",
-            tag: "tag of the dataset"
+            tag: "tag of the dataset",
+            data: null,
         }
     }
 }
