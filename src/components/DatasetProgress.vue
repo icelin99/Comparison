@@ -18,8 +18,9 @@
         </template>
         <template #content="{ index, nextCallback }">
             <div class="flex pt-4 justify-content-end" style="display: flex;">
-                <Button label="Next" icon="pi pi-arrow-right" iconPos="right" style="margin-left:auto; background-color: cornflowerblue;" @click="NextCallback(index,nextCallback)" />
-                <Button label="Submit" v-if="canSubmit" icon="pi pi-check" iconPos="right" style="background-color: mediumaquamarine;border-color: aliceblue;"   @click="submitData" />
+                <Button label="Submit" v-if="canSubmit" icon="pi pi-check" iconPos="right" style="background-color: mediumaquamarine;border-color: aliceblue;"  @click="submitData" />
+                <Button label="Next" icon="pi pi-arrow-right" iconPos="right" :style="{marginLeft:'auto', backgroundColor: hover? 'rgba(100,150,237,0.5)':'#6495ed', color:hover?'#46566d': '#ffffff'}" @click="NextCallback(index,nextCallback)" @mouseover="hover = true" @mouseleave="hover = false" />
+                
             </div>
         </template>
     </StepperPanel>
@@ -38,8 +39,8 @@
         <template #content="{ index, prevCallback, nextCallback }">
             <div class="flex pt-4 justify-content-end" style="display: flex;">
                 <Button label="Back" severity="secondary" icon="pi pi-arrow-left" style="margin-right:auto;" @click="PrevCallback(index, prevCallback)" />
-                <Button label="Submit" v-if="canSubmit" icon="pi pi-check" iconPos="right" style="background-color: mediumaquamarine;border-color: aliceblue;"   @click="submitData" />
-                <Button label="Next" icon="pi pi-arrow-right" iconPos="right"  style="margin-left:auto; background-color: cornflowerblue;" @click="NextCallback(index, nextCallback)" />
+                <Button label="Submit" v-if="canSubmit" icon="pi pi-check" iconPos="right" style="background-color: mediumaquamarine;border-color: aliceblue;"    @click="submitData" />
+                <Button label="Next" icon="pi pi-arrow-right" iconPos="right"  :style="{marginLeft:'auto', backgroundColor: hover? 'rgba(100,150,237,0.5)':'#6495ed', color:hover?'#46566d': '#ffffff'}" @click="NextCallback(index, nextCallback)"  @mouseover="hover = true" @mouseleave="hover = false" />
             </div>
         </template>
     </StepperPanel>
@@ -59,7 +60,7 @@
             <div class="flex pt-4 justify-content-end" style="display: flex;">
                 <Button label="Back" severity="secondary" icon="pi pi-arrow-left" style="margin-right:auto; display: block;" @click="PrevCallback(index, prevCallback)" />
                 <Button label="Submit" v-if="canSubmit" icon="pi pi-check" iconPos="right" style="background-color: mediumaquamarine;border-color: aliceblue;"   @click="submitData" />
-                <Button label="Next" icon="pi pi-arrow-right" iconPos="right" style="margin-left:auto; background-color: cornflowerblue;"  @click="NextCallback(index, nextCallback)" />
+                <Button label="Next" icon="pi pi-arrow-right" iconPos="right" :style="{marginLeft:'auto', backgroundColor: hover? 'rgba(100,150,237,0.5)':'#6495ed', color:hover?'#46566d': '#ffffff'}"  @click="NextCallback(index, nextCallback)"  @mouseover="hover = true" @mouseleave="hover = false" />
             </div>
         </template>
     </StepperPanel>
@@ -79,7 +80,7 @@
             <div class="flex pt-4 justify-content-end" style="display: flex;">
                 <Button label="Back" severity="secondary" icon="pi pi-arrow-left" style="margin-right:auto;" @click="PrevCallback(index, prevCallback)" />
                 <Button label="Submit" v-if="canSubmit" icon="pi pi-check" iconPos="right" style="background-color: mediumaquamarine;border-color: aliceblue;"   @click="submitData" />
-                <Button label="Next" icon="pi pi-arrow-right" iconPos="right" style="margin-left:auto; background-color: cornflowerblue;" @click="NextCallback(index, nextCallback)" />
+                <Button label="Next" icon="pi pi-arrow-right" iconPos="right" :style="{marginLeft:'auto', backgroundColor: hover? 'rgba(100,150,237,0.5)':'#6495ed', color:hover?'#46566d': '#ffffff'}" @click="NextCallback(index, nextCallback)"  @mouseover="hover = true" @mouseleave="hover = false" />
             </div>
         </template>
     </StepperPanel>
@@ -99,7 +100,7 @@
             <div class="flex pt-4 justify-content-end" style="display: flex;">
                 <Button label="Back" severity="secondary" icon="pi pi-arrow-left" style="margin-right:auto;" @click="PrevCallback(index, prevCallback)" />
                 <Button label="Submit" v-if="canSubmit" icon="pi pi-check" iconPos="right" style="background-color: mediumaquamarine;border-color: aliceblue;"   @click="submitData" />
-                <Button label="Next" icon="pi pi-arrow-right" iconPos="right" style="margin-left:auto; background-color: cornflowerblue;" @click="NextCallback(index, nextCallback)" />
+                <Button label="Next" icon="pi pi-arrow-right" iconPos="right" :style="{marginLeft:'auto', backgroundColor: hover? 'rgba(100,150,237,0.5)':'#6495ed', color:hover?'#46566d': '#ffffff'}" @click="NextCallback(index, nextCallback)"  @mouseover="hover = true" @mouseleave="hover = false" />
             </div>
         </template>
     </StepperPanel>
@@ -123,7 +124,7 @@ export default {
     StepperPanel,
     Button,
     Dropdown,
-    MultiSelect
+    MultiSelect,
   },
   data() {
     return {
@@ -147,6 +148,7 @@ export default {
       alreadySubmit: false,
       filteredData: null,
       filteredTag: null,
+      hover: false,
     };
   },
   mounted() {
@@ -203,6 +205,7 @@ export default {
         this.active = 0;
         this.canSubmit = false;
         this.$store.dispatch("updateSelectSubmitted", false);
+        this.$store.dispatch("updateCurrentPage",1)
     },
     onDatasetChange() {
         if(this.selectedDataset && this.selectedModel && this.selectedStandard) {
@@ -233,7 +236,11 @@ export default {
         this.filterTags();
     },
     onStandardChange() {
-       
+        if(this.selectedStandard == "3档") {
+            this.$store.dispatch("updateRatingStandard",3);
+        } else if(this.selectedStandard == "5档") {
+            this.$store.dispatch("updateRatingStandard",5);
+        }
         if(this.selectedDataset && this.selectedModel && this.selectedStandard) {
             this.canSubmit = true;
         }
@@ -363,5 +370,19 @@ export default {
 ::v-deep .p-stepper-separator {
     margin-top: 20px;
     height: 3px !important;
+}
+::v-deep .p-button  {
+    transition: background-color 0.3s !important; 
+}
+::v-deep .p-button .p-button-label {
+  font-family: 'Arial', sans-serif; 
+  /* font-size: 16px; */
+  font-weight: bold;
+}
+::v-deep .p-button .pi {
+  font-weight: bold;
+}
+::v-deeep .p-button:hover {
+    background-color: #f1f5f9 !important;
 }
 </style>
