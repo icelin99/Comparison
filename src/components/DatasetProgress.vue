@@ -1,8 +1,9 @@
 <template>
 <div>
-    <div class="heading" v-if="alreadySubmit">
+
+    <!-- <div class="heading" v-if="alreadySubmit">
         <Button label="Clear selected items" severity="secondary" icon="pi pi-times" iconPos="left" @click="ClearStepper" />
-    </div>
+    </div> -->
 <Stepper v-if="!alreadySubmit">
     <StepperPanel >
         <template #header="{ index }">
@@ -116,6 +117,7 @@ import Button from 'primevue/button';
 import Dropdown from 'primevue/dropdown';
 import cls_info from '../../public/assets/cls_info.json';
 import MultiSelect from 'primevue/multiselect';
+import Menubar from 'primevue/menubar';
 
 export default {
   name: 'App',
@@ -125,6 +127,7 @@ export default {
     Button,
     Dropdown,
     MultiSelect,
+    Menubar
   },
   data() {
     return {
@@ -149,6 +152,7 @@ export default {
       filteredData: null,
       filteredTag: null,
       hover: false,
+      
     };
   },
   mounted() {
@@ -317,7 +321,7 @@ export default {
 
 <style>
 .heading {
-    padding: 0 0 15px 0;
+    padding: 0 0 45px 0;
 }
 .header-container {
   display: flex;

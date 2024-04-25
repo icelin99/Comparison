@@ -38,12 +38,21 @@
             </div>
         </div>
     </div>
-    <div v-if="isShow" class="page-change" style="display: flex; flex-direction: row; width: '100%'; height: '30px'">
-        <Button label="" icon="pi pi-angle-left" iconPos="right" :style="{backgroundColor: leftHover?'rgba(176,196,222,0.5)': 'lightsteelblue',borderColor: 'aliceblue',marginRight:'15px'}"   @click="prevPage" @mouseover="leftHover = true" @mouseleave="leftHover = false" />
-        Page {{ currentPage }} of {{ pageCount }}
-        <Button label=""  icon="pi pi-angle-right"  :style="{backgroundColor: rightHover? 'rgba(100,149,237,0.5)':'cornflowerblue',borderColor: 'aliceblue'}"   @click="nextPage" @mouseover="rightHover = true" @mouseleave="rightHover = false" />
-        <p> jump to a specific page</p>
-        <InputNumber v-model="jumpPage" inputId="minmax-buttons" mode="decimal" :min="1" :max="pageCount" @keyup.enter="jump" autofocus />
+    <div v-if="isShow" class="page-change" style="display: flex; flex-direction: column; width: '100%';">
+        <div class="save-button">
+            <Button style="margin-right: 20px; background-color: cornflowerblue;" v-if="!saveOneClick" label="Save this page"  @click="saveOnePage"  />
+            <Button style="margin-right: 20px; background-color: cornflowerblue;" v-if="saveOneClick" label="This page saved ✔️" disabled="true" />
+            <Button style="margin-left: 10px; background-color: cornflowerblue;" v-if="!saveAllClick" label="Save All"     @click="saveAllPage" />
+            <Button style="margin-left: 10px; background-color: cornflowerblue;" v-if="saveAllClick" label="All saved ✔️" disabled="true" />
+        </div>
+        <div style="display: flex; flex-direction: row; width: '100%'; height: 30px; line-height: 25px; justify-content: center;align-items: center;">
+            <Button label="" icon="pi pi-angle-left" iconPos="right" :style="{backgroundColor: leftHover?'rgba(176,196,222,0.5)': 'lightsteelblue',borderColor: 'aliceblue',marginRight:'15px'}"   @click="prevPage" @mouseover="leftHover = true" @mouseleave="leftHover = false" />
+            Page {{ currentPage }} of {{ pageCount }}
+            <Button label=""  icon="pi pi-angle-right"  :style="{backgroundColor: rightHover? 'rgba(100,149,237,0.5)':'cornflowerblue',borderColor: 'aliceblue'}"   @click="nextPage" @mouseover="rightHover = true" @mouseleave="rightHover = false" />
+            <p> jump to a specific page</p>
+            <InputNumber v-model="jumpPage" inputId="minmax-buttons" mode="decimal" :min="1" :max="pageCount" @keyup.enter="jump" autofocus />
+        </div>
+        
     </div>
 </div>
 </template>
@@ -115,6 +124,8 @@ export default {
             leftHover: false,
             rightHover: false,
             colorScale: d3.scaleOrdinal(d3.schemePastel1),
+            saveOneClick: false,
+            saveAllClick: false,
         }
     },
     methods: {
@@ -141,6 +152,16 @@ export default {
                 scale = d3.scaleOrdinal().domain([0,1,2,3,4]).range([0,0.25,0.5,0.75,1])
             }
             this.modelList[0].score = scale(this.modelList[0].standardScore)
+            this.saveOneClick = false;
+            this.saveAllClick = false;
+        },
+        saveOnePage() {
+            this.saveOneClick = true;
+            //  save to databse
+        },
+        saveAllPage() {
+            this.saveAllClick = true;
+            // save all to database
         }
     }
 }
@@ -217,6 +238,11 @@ export default {
 .rating-img img {
     width: 100%;
     height: 100%;
+}
+.save-button {
+    padding-bottom: 30px;
+    padding-right: 20px;
+    padding-left: 20px;
 }
 </style>
 <style scoped>
