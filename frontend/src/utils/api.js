@@ -21,11 +21,12 @@ export default {
             }
         })
     },
-    getTagList(datasetID = null, modelIDs = []) {
+    getTagList(datasetID = null, modelIDs = [], categoryIDs = []) {
         return axios.get(API_URL + 'list/tag/', {
             params: {
                 datasetID: datasetID,
-                modelIDs: modelIDs
+                modelIDs: modelIDs,
+                categoryIDs: categoryIDs
             }
         })
     },

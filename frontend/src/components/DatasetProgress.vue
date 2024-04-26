@@ -34,7 +34,7 @@
                 </span>
                 <!-- </button> -->
                 <div style="font-weight: bold; padding: 0.5em;">Model</div>
-                <MultiSelect v-model="selectedModel" :options="models" placeholder="select a model" filter showClear @change="onModelChange(index)" :disabled="index != active" />
+                <MultiSelect v-model="selectedModel" :options="models" optionValue="id" optionLabel="name" placeholder="select a model" filter showClear @change="onModelChange(index)" :disabled="index != active" />
             </div>
         </template>
         <template #content="{ index, prevCallback, nextCallback }">
@@ -54,14 +54,14 @@
                 </span>
                 <!-- </button> -->
                 <div style="font-weight: bold; padding: 0.5em;">Standard</div>
-                <Dropdown :options="standards" v-model="selectedStandard" placeholder="select standard" filter showClear @change="onStandardChange(index)" :disabled="index != active"  />
+                <Dropdown :options="standards" v-model="selectedStandard"  optionValue="id" optionLabel="name" placeholder="select standard" filter showClear @change="onStandardChange(index)" :disabled="index != active"  />
             </div>
         </template>
         <template #content="{ index, prevCallback,nextCallback }">
             <div class="flex pt-4 justify-content-end" style="display: flex;">
                 <Button label="Back" severity="secondary" icon="pi pi-arrow-left" style="margin-right:auto; display: block;" @click="PrevCallback(index, prevCallback)" />
                 <Button label="Submit" v-if="canSubmit" icon="pi pi-check" iconPos="right" style="background-color: mediumaquamarine;border-color: aliceblue;"   @click="submitData" />
-                <Button label="Next" icon="pi pi-arrow-right" iconPos="right" :style="{marginLeft:'auto', backgroundColor: hover? 'rgba(100,150,237,0.5)':'#6495ed', color:hover?'#46566d': '#ffffff'}"  @click="NextCallback(index, nextCallback)"  @mouseover="hover = true" @mouseleave="hover = false" />
+                <Button label="Next" :disabled="!(selectedDataset && selectedModel && selectedStandard)" icon="pi pi-arrow-right" iconPos="right" :style="{marginLeft:'auto', backgroundColor: hover? 'rgba(100,150,237,0.5)':'#6495ed', color:hover?'#46566d': '#ffffff'}"  @click="NextCallback(index, nextCallback)"  @mouseover="hover = true" @mouseleave="hover = false" />
             </div>
         </template>
     </StepperPanel>
@@ -74,7 +74,7 @@
                 </span>
                 <!-- </button> -->
                 <div style="font-weight: bold; padding: 0.5em;">Category</div>
-                <MultiSelect :options="categories" v-model="selectedCategory" placeholder="select category" filter showClear @change="onCategoryChange(index)" :disabled="index != active" />
+                <MultiSelect :options="categories" v-model="selectedCategory"  optionValue="id" optionLabel="name" placeholder="select category" filter showClear @change="onCategoryChange(index)" :disabled="index != active" />
             </div>
         </template>
         <template #content="{ index, prevCallback, nextCallback }" >
@@ -94,7 +94,7 @@
                 </span>
                 <!-- </button> -->
                 <div style="font-weight: bold; padding: 0.5em;">Tag</div>
-                <MultiSelect :options="filteredTag" v-model="selectedTag" placeholder="select a tag" filter showClear @change="onTagChange(index)" :disabled="index != active" />
+                <MultiSelect :options="tags" v-model="selectedTag"  optionValue="id" optionLabel="name" placeholder="select a tag" filter showClear @change="onTagChange(index)" :disabled="index != active" />
             </div>
         </template>
         <template #content="{ index, prevCallback, nextCallback }" >
@@ -153,12 +153,17 @@ export default {
       filteredData: null,
       filteredTag: null,
       hover: false,
+      canCategoryNext: false,
       
     };
   },
   mounted() {
     this.fetchData();
     this.getDatasetList();
+    this.getModelList();
+    this.getStandardList();
+    this.getTagList();
+    this.getCategoryList();
   },
   create() {
     
@@ -185,6 +190,13 @@ export default {
         console.log("active", this.active);
         if(this.selectedDataset && this.selectedModel && this.selectedStandard) {
             this.canSubmit = true;
+            this.getCategoryList(this.selectedDataset, this.selectedModel);
+            if(this.selectedCategory) {
+                this.getTagList(this.selectedDataset, this.selectedModelthis.selectedCategory);
+            } else {
+                this.getTagList(this.selectedDataset, this.selectedModel);
+            }
+
         }
         nextCallback();
     },
@@ -239,17 +251,18 @@ export default {
             this.canSubmit = true;
         }
         console.log(this.selectedCategory);
-        this.filterTags();
     },
     onStandardChange() {
-        if(this.selectedStandard == "3档") {
-            this.$store.dispatch("updateRatingStandard",3);
-        } else if(this.selectedStandard == "5档") {
-            this.$store.dispatch("updateRatingStandard",5);
-        }
-        if(this.selectedDataset && this.selectedModel && this.selectedStandard) {
-            this.canSubmit = true;
-        }
+        console.log(this.selectedStandard);
+        // if(this.selectedStandard == "3档") {
+        //     this.$store.dispatch("updateRatingStandard",3);
+        // } else if(this.selectedStandard == "5档") {
+        //     this.$store.dispatch("updateRatingStandard",5);
+        // }
+        // if(this.selectedDataset && this.selectedModel && this.selectedStandard) {
+        //     this.canSubmit = true;
+        // }
+        
     },
 
     async fetchData() {
@@ -325,6 +338,46 @@ export default {
         }
         catch (error) {
             console.error('Error getting dataset list:', error)
+        }
+    },
+    async getModelList() {
+        try {
+            const response = await api.getModelList();
+            console.log("response",response.data);
+            this.models = response.data;
+        }
+        catch (error) {
+            console.error('Error getting model list:', error)
+        }
+    },
+    async getStandardList() {
+        try {
+            const response = await api.getStandardList();
+            console.log("response",response.data);
+            this.standards = response.data;
+        }
+        catch (error) {
+            console.error('Error getting dtandard list:', error)
+        }
+    },
+    async getTagList(datasetID, modelIds, catregoryIds=null) {
+        try {
+            const response = await api.getTagList(datasetID, modelIds,catregoryIds);
+            console.log("response",response.data);
+            this.tags = response.data;
+        }
+        catch (error) {
+            console.error('Error getting tag list:', error)
+        }
+    },
+    async getCategoryList(datasetID, modelIds) {
+        try {
+            const response = await api.getCategoryList(datasetID, modelIds);
+            console.log("response",response.data);
+            this.categories = response.data;
+        }
+        catch (error) {
+            console.error('Error getting category list:', error)
         }
     }
 

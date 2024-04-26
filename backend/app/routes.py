@@ -44,7 +44,7 @@ def get_standard_list():
 
 @router.get("/list/category/")
 # 参数允许为空
-def get_category_list(datasetID: int = Query(), modelIDs: List = Query([])):
+def get_category_list(datasetID: Optional[int] = None, modelIDs: Optional[List[int]] = Query(None) ):
     categories = [{
         "id": "1",
         "name": "category 1"
@@ -56,7 +56,7 @@ def get_category_list(datasetID: int = Query(), modelIDs: List = Query([])):
 
 @router.get("/list/tag/")
 # 参数允许为空
-def get_tag_list(datasetID: int = Query(), modelIDs: List = Query([])):
+def get_tag_list(datasetID: Optional[int] = None, modelIDs: Optional[List[int]] = Query(None), categoryIDs: Optional[List[int]] = Query(None)):
     tags = [{
         "id": "1",
         "name": "tag 1"
