@@ -1,0 +1,1 @@
+run 'uvicorn app.main:app --reload --port 8002' to start the service

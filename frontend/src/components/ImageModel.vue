@@ -40,10 +40,10 @@
     </div>
     <div v-if="isShow" class="page-change" style="display: flex; flex-direction: column; width: '100%';">
         <div class="save-button">
-            <Button style="margin-right: 20px; background-color: cornflowerblue;" v-if="!saveOneClick" label="Save this page"  @click="saveOnePage"  />
-            <Button style="margin-right: 20px; background-color: cornflowerblue;" v-if="saveOneClick" label="This page saved ✔️" disabled="true" />
-            <Button style="margin-left: 10px; background-color: cornflowerblue;" v-if="!saveAllClick" label="Save All"     @click="saveAllPage" />
-            <Button style="margin-left: 10px; background-color: cornflowerblue;" v-if="saveAllClick" label="All saved ✔️" disabled="true" />
+            <!-- <Button style="margin-right: 20px; background-color: cornflowerblue;" v-if="!saveOneClick" label="Save this page"  @click="saveOnePage"  /> -->
+            <!-- <Button style="margin-right: 20px; background-color: cornflowerblue;" v-if="saveOneClick" label="This page saved ✔️" disabled="true" /> -->
+            <Button style="margin-left: 10px; background-color: cornflowerblue;" v-if="!saveAllClick && currentPage == pageCount" label="Save All"     @click="saveAllPage" />
+            <Button style="margin-left: 10px; background-color: cornflowerblue;" v-if="saveAllClick && currentPage == pageCount" label="All saved ✔️" disabled="true" />
         </div>
         <div style="display: flex; flex-direction: row; width: '100%'; height: 30px; line-height: 25px; justify-content: center;align-items: center;">
             <Button label="" icon="pi pi-angle-left" iconPos="right" :style="{backgroundColor: leftHover?'rgba(176,196,222,0.5)': 'lightsteelblue',borderColor: 'aliceblue',marginRight:'15px'}"   @click="prevPage" @mouseover="leftHover = true" @mouseleave="leftHover = false" />
@@ -132,9 +132,11 @@ export default {
         ...mapMutations(['nextItem','prevItem','setPage']),
         nextPage() {
             this.nextItem();
+            // todo 自动保存
         },
         prevPage() {
             this.prevItem();
+            // todo auto save
         },
         jump() {
             console.log("jump page",this.jumpPage);

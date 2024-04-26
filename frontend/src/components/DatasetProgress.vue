@@ -14,7 +14,7 @@
                 </span>
                 <!-- </button> -->
                 <div style="font-weight: bold; padding: 0.5em;">Datasets</div>
-                <Dropdown :options="datasets" v-model="selectedDataset" placeholder="select a dataSet" filter showClear @change="onDatasetChange()" :disabled="index != active"  />
+                <Dropdown :options="datasets" optionLabel="name" optionValue="id" v-model="selectedDataset" placeholder="select a dataSet" filter showClear @change="onDatasetChange()" :disabled="index != active"  />
             </div>
         </template>
         <template #content="{ index, nextCallback }">
@@ -118,6 +118,7 @@ import Dropdown from 'primevue/dropdown';
 import cls_info from '../../public/assets/cls_info.json';
 import MultiSelect from 'primevue/multiselect';
 import Menubar from 'primevue/menubar';
+import api from '@/utils/api';
 
 export default {
   name: 'App',
@@ -157,6 +158,7 @@ export default {
   },
   mounted() {
     this.fetchData();
+    this.getDatasetList();
   },
   create() {
     
@@ -215,7 +217,7 @@ export default {
         if(this.selectedDataset && this.selectedModel && this.selectedStandard) {
             this.canSubmit = true;
         }
-        console.log(typeof nextCallback)
+        console.log(this.selectedDataset)
     },
     onModelChange() {
       
@@ -313,6 +315,17 @@ export default {
         });
         console.log("filtered data",this.filteredData);
         this.$store.dispatch("updateFilterData",this.filteredData);
+    },
+
+    async getDatasetList() {
+        try {
+            const response = await api.getDatasetList();
+            console.log("response",response.data);
+            this.datasets = response.data;
+        }
+        catch (error) {
+            console.error('Error getting dataset list:', error)
+        }
     }
 
   }
