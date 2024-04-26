@@ -2,6 +2,9 @@ from pydantic import BaseModel
 from typing import List
 
 
+class DatasetItem(BaseModel):
+    id: int
+    name: str
 
 class TagItem(BaseModel):
     id: int
