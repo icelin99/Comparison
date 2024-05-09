@@ -1,9 +1,6 @@
 <template>
 <div>
 
-    <!-- <div class="heading" v-if="alreadySubmit">
-        <Button label="Clear selected items" severity="secondary" icon="pi pi-times" iconPos="left" @click="ClearStepper" />
-    </div> -->
 <Stepper v-if="!alreadySubmit">
     <StepperPanel >
         <template #header="{ index }">
@@ -34,7 +31,7 @@
                 </span>
                 <!-- </button> -->
                 <div style="font-weight: bold; padding: 0.5em;">Model</div>
-                <MultiSelect v-model="selectedModel" :options="models" optionValue="id" optionLabel="name" placeholder="select a model" filter showClear @change="onModelChange(index)" :disabled="index != active" />
+                <MultiSelect v-model="selectedModel" :options="models" optionValue="id" optionLabel="name" placeholder="select a model" filter showClear @change="onModelChange(index)" :disabled="index != active" :style="{ maxWidth: '220px' }" />
             </div>
         </template>
         <template #content="{ index, prevCallback, nextCallback }">
@@ -61,7 +58,7 @@
             <div class="flex pt-4 justify-content-end" style="display: flex;">
                 <Button label="Back" severity="secondary" icon="pi pi-arrow-left" style="margin-right:auto; display: block;" @click="PrevCallback(index, prevCallback)" />
                 <Button label="Submit" v-if="canSubmit" icon="pi pi-check" iconPos="right" style="background-color: mediumaquamarine;border-color: aliceblue;"   @click="submitData" />
-                <Button label="Next" :disabled="!(selectedDataset && selectedModel && selectedStandard)" icon="pi pi-arrow-right" iconPos="right" :style="{marginLeft:'auto', backgroundColor: hover? 'rgba(100,150,237,0.5)':'#6495ed', color:hover?'#46566d': '#ffffff'}"  @click="NextCallback(index, nextCallback)"  @mouseover="hover = true" @mouseleave="hover = false" />
+                <Button label="Next" :disabled="!canSubmit" icon="pi pi-arrow-right" iconPos="right" :style="{marginLeft:'auto', backgroundColor: hover? 'rgba(100,150,237,0.5)':'#6495ed', color:hover?'#46566d': '#ffffff'}"  @click="NextCallback(index, nextCallback)"  @mouseover="hover = true" @mouseleave="hover = false" />
             </div>
         </template>
     </StepperPanel>
@@ -119,6 +116,7 @@ import cls_info from '../../public/assets/cls_info.json';
 import MultiSelect from 'primevue/multiselect';
 import Menubar from 'primevue/menubar';
 import api from '@/utils/api';
+import {mapGetters} from "vuex"
 
 export default {
   name: 'App',
@@ -149,7 +147,6 @@ export default {
       selectedStandard: null,
       questions: [],
       selectedQuestion: null,
-      alreadySubmit: false,
       filteredData: null,
       filteredTag: null,
       hover: false,
@@ -158,45 +155,47 @@ export default {
     };
   },
   mounted() {
-    this.fetchData();
+    // this.fetchData();
     this.getDatasetList();
     this.getModelList();
     this.getStandardList();
-    this.getTagList();
-    this.getCategoryList();
+    // this.getTagList();
+    // this.getCategoryList();
   },
   create() {
     
   },
   computed: {
-    filteredQuestions() {
-      return this.questions.filter(question => {
-        const categoryMatch = this.selectedCategory ? question.category === this.selectedCategory : true;
-        const tagMatch = this.selectedTag ? question.tag.includes(this.selectedTag) : true;
-        return categoryMatch && tagMatch;
-      });
-    }
+    ...mapGetters(["filterData","alreadySubmit"])
   },
+  watch: {
+        alreadySubmit(newVal) {
+            if(newVal == false) {
+                this.ClearStepper();
+            }
+        }
+    },
   methods: {
     updateActive(index) {
         this.active = index;
         console.log("active", this.active);
-        if(this.selectedDataset && this.selectedModel && this.selectedStandard) {
-            this.canSubmit = true;
-        }
+        this.canSubmit = this.checkCanSubmit();
     },
     NextCallback(index, nextCallback) {
         this.active = index +1;
         console.log("active", this.active);
-        if(this.selectedDataset && this.selectedModel && this.selectedStandard) {
-            this.canSubmit = true;
-            this.getCategoryList(this.selectedDataset, this.selectedModel);
+        this.canSubmit = this.checkCanSubmit();
+        if(this.canSubmit) {
+            const model_list = this.selectedModel? this.changeObject2List(this.selectedModel) : [];
+            // 把多选的object转换成list
             if(this.selectedCategory) {
-                this.getTagList(this.selectedDataset, this.selectedModelthis.selectedCategory);
+                // 把多选的object转换成list
+                const category_list = this.changeObject2List(this.selectedCategory);
+                console.log("select category", category_list)
+                this.getTagList(this.selectedDataset, model_list, category_list);
             } else {
-                this.getTagList(this.selectedDataset, this.selectedModel);
+                this.getTagList(this.selectedDataset, model_list);
             }
-
         }
         nextCallback();
     },
@@ -205,63 +204,95 @@ export default {
         console.log("active", this.active);
         prevCallback();
     },
-    submitData() {
+    async submitData() {
         console.log("submit");
         this.canSubmit = false;
-        // filter questions
-        this.filterQuestionID();
-        this.$store.dispatch("updateSelectSubmitted", true);
-        this.alreadySubmit = true;
+        // 存储数据到 local storage
+        localStorage.setItem("datasetID", this.selectedDataset.toString())
+        localStorage.setItem("modelIDs", JSON.stringify(this.changeObject2List(this.selectedModel)))
+        if(this.selectedTag) {
+            localStorage.setItem("tagIDs", JSON.stringify(this.changeObject2List(this.selectedTag)))
+        }
+        if(this.selectedCategory){
+            localStorage.setItem("modelIDs", JSON.stringify(this.changeObject2List(this.selectedCategory)))
+        }
+
+        try {
+            this.$store.dispatch("updateCurrentPage",1)
+            const response = await api.getFilterList(parseInt(localStorage.getItem("datasetID")), JSON.parse(localStorage.getItem("modelIDs")), JSON.parse(localStorage.getItem("tagIDs")),  JSON.parse(localStorage.getItem("categoryIDs")));
+            console.log("get li list and first page",response.data);
+            this.$store.dispatch("updatePageCount",response.data["page_count"]);
+            this.$store.dispatch("updatePageInfo",response.data["page_info"]);
+            this.$store.dispatch("updateSelectSubmitted", true);
+            this.$store.dispatch("updateAlreadySubmit", true);
+        }
+        catch (error) {
+            console.error('Error getting id list and first page error:', error)
+        }
+        
     },
     ClearStepper() {
-        this.alreadySubmit = false;
         this.selectedDataset = null;
         this.selectedModel = null;
         this.selectedStandard = null;
         this.selectedCategory = null;
         this.selectedTag = null;
+        localStorage.removeItem("datasetID");
+        localStorage.removeItem("modelIDs");
+        localStorage.removeItem("standard");
+        localStorage.removeItem("tagIDs");
+        localStorage.removeItem("categoryIDs");
         this.active = 0;
         this.canSubmit = false;
         this.$store.dispatch("updateSelectSubmitted", false);
         this.$store.dispatch("updateCurrentPage",1)
     },
     onDatasetChange() {
-        if(this.selectedDataset && this.selectedModel && this.selectedStandard) {
-            this.canSubmit = true;
+        if(!this.selectedDataset) {
+            this.models = [];
+            this.tags = [];
+            this.categories = [];
+            this.canSubmit = this.checkCanSubmit();
+        } else {
+            this.getModelList(this.selectedDataset);
+            this.getCategoryList(this.selectedDataset);
+            this.canSubmit = this.checkCanSubmit();
         }
         console.log(this.selectedDataset)
     },
     onModelChange() {
-      
-        if(this.selectedDataset && this.selectedModel && this.selectedStandard) {
-            this.canSubmit = true;
+        this.canSubmit = this.checkCanSubmit();
+        if(!this.selectedModel) {
+            this.tags = null;
+            this.categories = null;
         }
         console.log("multi select",this.selectedModel);
     },
     onTagChange() {
         
-        if(this.selectedDataset && this.selectedModel && this.selectedStandard) {
-            this.canSubmit = true;
-        }
+        this.canSubmit = this.checkCanSubmit();
         console.log(this.selectedTag);
     },
     onCategoryChange() {
-        
-        if(this.selectedDataset && this.selectedModel && this.selectedStandard) {
-            this.canSubmit = true;
-        }
+        this.canSubmit = this.checkCanSubmit();
         console.log(this.selectedCategory);
+        if(!this.selectedCategory) {
+            this.tags = null;
+        }
     },
     onStandardChange() {
-        console.log(this.selectedStandard);
-        // if(this.selectedStandard == "3档") {
-        //     this.$store.dispatch("updateRatingStandard",3);
-        // } else if(this.selectedStandard == "5档") {
-        //     this.$store.dispatch("updateRatingStandard",5);
-        // }
-        // if(this.selectedDataset && this.selectedModel && this.selectedStandard) {
-        //     this.canSubmit = true;
-        // }
+        console.log(this.selectedStandard); // 存的是standard的id
+        this.canSubmit = this.checkCanSubmit();
+        console.log("can submit?", this.canSubmit)
+        //默认3档和5档，name值只有3和5
+        const item = this.standards.find(item => item.id == this.selectedStandard);
+        const name = item? item.name: undefined;
+        if(String(name) == "3") {
+            this.$store.dispatch("updateRatingStandard",3);
+        } else if(String(name) == "5") {
+            this.$store.dispatch("updateRatingStandard",5);
+        }
+        console.log("standard", name);
         
     },
 
@@ -340,11 +371,12 @@ export default {
             console.error('Error getting dataset list:', error)
         }
     },
-    async getModelList() {
+    async getModelList(datasetId = null) {
         try {
-            const response = await api.getModelList();
-            console.log("response",response.data);
+            const response = await api.getModelList(datasetId);
+            console.log("response model",response.data);
             this.models = response.data;
+            this.canSubmit = this.checkCanSubmit();
         }
         catch (error) {
             console.error('Error getting model list:', error)
@@ -360,7 +392,7 @@ export default {
             console.error('Error getting dtandard list:', error)
         }
     },
-    async getTagList(datasetID, modelIds, catregoryIds=null) {
+    async getTagList(datasetID, modelIds=[], catregoryIds=[]) {
         try {
             const response = await api.getTagList(datasetID, modelIds,catregoryIds);
             console.log("response",response.data);
@@ -379,6 +411,22 @@ export default {
         catch (error) {
             console.error('Error getting category list:', error)
         }
+    },
+    changeObject2List(object) {
+        console.log(object, Object.values(object))
+        return Object.values(object);
+    },
+    checkCanSubmit() {
+        if(this.models.length > 0) {
+            if(this.selectedDataset && this.selectedModel && this.selectedStandard) {
+                return true;
+            }
+        }else {
+            if(this.selectedDataset && this.selectedStandard) {
+                return true;
+            }
+        }
+        return false;
     }
 
   }

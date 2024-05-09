@@ -7,8 +7,12 @@ export default {
         console.log("11111111")
         return axios.get(API_URL + 'list/dataset/')
     },
-    getModelList() {
-        return axios.get(API_URL + 'list/model/')
+    getModelList(datasetID) {
+        return axios.get(API_URL + 'list/model/', {
+            params: {
+                datasetID: datasetID
+            }
+        })
     },
     getStandardList() {
         return axios.get(API_URL + 'list/standard/')
@@ -22,31 +26,50 @@ export default {
         })
     },
     getTagList(datasetID = null, modelIDs = [], categoryIDs = []) {
-        return axios.get(API_URL + 'list/tag/', {
-            params: {
+        console.log("api--",datasetID,modelIDs,categoryIDs)
+        return axios.post(API_URL + 'list/tag/', {
                 datasetID: datasetID,
                 modelIDs: modelIDs,
                 categoryIDs: categoryIDs
-            }
         })
     },
     getFilterList(datasetID = 1, modelIDs = [], tagIDs = [], categoryIDs = []) {
-        return axios.get(API_URL + 'filter/', {
-            params: {
+        tagIDs = tagIDs? tagIDs: [];
+        categoryIDs = categoryIDs ? categoryIDs: [];
+        console.log("get filter list post: ", datasetID, modelIDs, tagIDs, categoryIDs)
+        return axios.post(API_URL + 'filter/', {
                 datasetID: datasetID,
                 modelIDs: modelIDs,
                 tagIDs: tagIDs,
                 categoryIDs: categoryIDs
-            }
         })
     },
     getPageById(pageId) {
-        return axios.get(API_URL + 'page/{pageId}/'.format(pageId))
+        const datasetID = parseInt(localStorage.getItem("datasetID"))
+        const modelIDs = JSON.parse(localStorage.getItem("modelIDs"))
+        const tagIDs = JSON.parse(localStorage.getItem("tagIDs"))
+        const categoryIDs = JSON.parse(localStorage.getItem("categoryIDs"))
+        return axios.post(`${API_URL}page/${pageId}/`, {
+            datasetID: datasetID,
+            modelIDs: modelIDs,
+            tagIDs: tagIDs,
+            categoryIDs: categoryIDs
+        })
     },
-    saveById(pageId, modelId, score, standard = null) {
-        return axios.post(API_URL + 'save/{pageId}/{modelId}/'.format(pageId, modelId), {
+    saveById(pageId, model_id, score = 0) {
+        const standard = parseInt(localStorage.getItem("standard"))
+        const datasetID = parseInt(localStorage.getItem("datasetID"))
+        const tagIDs = JSON.parse(localStorage.getItem("tagIDs"))
+        const categoryIDs = JSON.parse(localStorage.getItem("categoryIDs"))
+        console.log("api ",pageId, model_id, score, standard);
+        pageId = parseInt(pageId,10)
+        return axios.post(`${API_URL}save/${pageId}`, {
+            datasetID: datasetID,
+            modelID: model_id,
             score: score,
-            standard: standard
+            standard: standard,
+            tagIDs: tagIDs,
+            categoryIDs: categoryIDs
         })
     }
 }

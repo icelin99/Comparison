@@ -1,13 +1,13 @@
 <template>
 <div>
 
-    <div v-if="isShow" style="display: flex; flex-direction: row; width: '100%'; height: '100%'">
+    <div v-if="isShow" style="display: flex; flex-direction: row; width: '100%'; height: '100%';position:fixed; top: 45px">
         <div :style="{width: '40%', height: '100%'}">
             <div style="display: flex; flex-direction: column; width: '100%'; height: '100%'; align-items: center;">
-                <div class="image-container"><img :src="currentData.image" alt="Can't find image"></div>
-                <div class="text-container"><div>Question: </div><div class="text-border"> {{currentData.question}}</div></div>
+                <div class="image-container"><img :src="img_path" alt="Can't find image"></div>
+                <div class="text-container"><div>Question: </div><div class="text-border"> {{pageInfo.question}}</div></div>
                 <div class="text-container"><div>Tag:</div>
-                    <div v-for="(item, index) in currentData.tag" :key="index" class="tag-list">
+                    <div v-for="(item, index) in tag" :key="index" class="tag-list">
                         <Tag severity="success" :style="{backgroundColor:colorScale(item),color:'#696969'}"> {{ item }}</Tag>
                     </div>
                 </div>
@@ -15,12 +15,12 @@
         </div>
         <div :style="{width: '60%', height: '100%'}">
             <div style="display: flex; flex-direction: row; width: '100%'; height: '100%'">
-                <DataTable :value="modelList" stripedRows tableStyle="min-width: 50rem">
-                    <Column field="model" header="Model"></Column>
-                    <Column field="answer" header="Answer"></Column>
-                    <Column  header="Score">
+                <DataTable :value="modelList" stripedRows tableStyle="min-width: 50rem; overflow: scroll; white-space: normal; word-wrap: break-word;" >
+                    <Column field="model_name" header="Model" style="max-width: 10rem"></Column>
+                    <Column field="answer" header="Answer" style="min-width: 25rem"></Column>
+                    <Column  header="Score" >
                         <template #body="slotProps">
-                            <Rating v-model="slotProps.data.standardScore" :stars="ratingStandard-1" @update:modelValue="onRatingChange">
+                            <Rating v-model="slotProps.data.standardScore" :stars="ratingStandard-1" @update:modelValue="value => onRatingChange(value,slotProps.index)">
                                 <template #cancelicon>
                                     <img src="/assets/cancel.png" width="24" height="24"/>
                                 </template>
@@ -69,6 +69,7 @@ import Tag from 'primevue/tag'
 import Rating from 'primevue/rating'
 import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
+import api from '@/utils/api'
 
 export default {
     name: 'App',
@@ -81,10 +82,11 @@ export default {
         Tag,
         Rating,
         DataTable,
-        Column
+        Column,
+        img_path: '/mnt/afs/user/chenzixuan/eval_tool_info/dataset/xiaomi_v1/images/000_c2e4feab-49d8-4f05-b22f-3d982d9e865f.jpg'
     },
     computed: {
-        ...mapGetters(["selectSubmitted","currentData", "pageCount", "currentPage","ratingStandard"]),
+        ...mapGetters(["selectSubmitted","currentData", "pageCount", "currentPage","ratingStandard", "pageInfo"]),
     },
     mounted() {
         this.$store.dispatch("updateCurrentPage",1);
@@ -99,16 +101,30 @@ export default {
                 this.isShow = false;
             }
         },
-        currentData(newVal) {
-            console.log("current data",newVal);
-            // todo: modify modelList when I get multiple models data.
-            this.modelList = [{
-                "model": "model1",
-                "answer": newVal.answer,
-                "score":0,
-                "standardScore": 0,
-            }]
+        pageInfo(newVal) {
+            console.log("pageInfo",newVal);
+            this.img_path = newVal.image_code
+            if(newVal.tag && this.tag.length > 0) {
+                this.tag = newVal.tag.map(tag => tag.name);
+            }
+            this.modelList = newVal.modelList;
+            this.modelList.forEach(element => {
+                element.standardScore = this.reverseScaleScore(element.score);
+            });
+        },
+        currentPage(newVal) {
+            console.log("current page",newVal)
         }
+        // currentData(newVal) {
+        //     console.log("current data",newVal);
+        //     // todo: modify modelList when I get multiple models data.
+        //     this.modelList = [{
+        //         "model": "model1",
+        //         "answer": newVal.answer,
+        //         "score":0,
+        //         "standardScore": 0,
+        //     }]
+        // }
     },
     data() {
         return {
@@ -125,35 +141,53 @@ export default {
             rightHover: false,
             colorScale: d3.scaleOrdinal(d3.schemePastel1),
             saveOneClick: false,
-            saveAllClick: false,
+            saveAllClick: false
         }
     },
     methods: {
         ...mapMutations(['nextItem','prevItem','setPage']),
-        nextPage() {
-            this.nextItem();
-            // todo 自动保存
+        async nextPage() {
+            // 获取下一页数据
+            const model_l = this.modelList;
+            const page = this.currentPage + 1;
+            this.saveAndGet(model_l, page);
         },
-        prevPage() {
-            this.prevItem();
-            // todo auto save
+        async prevPage() {
+            // 获取上一页数据
+            const page = this.currentPage - 1;
+            const model_l = this.modelList;
+            this.saveAndGet(model_l, page);
         },
-        jump() {
+        async jump() {
             console.log("jump page",this.jumpPage);
-            if(this.jumpPage >= 1 && this.jumpPage <= this.pageCount) {
-                this.$store.dispatch("updateCurrentPage",this.jumpPage)
-                this.jumpPage = null;
-            }
+            const model_l = this.modelList;
+            this.saveAndGet(model_l, this.jumpPage);
         },
-        onRatingChange() {
-            // 映射到相应的分数段
+        scaleScore(standardScore) {
             let scale = null;
             if(this.ratingStandard == 3) {
                 scale = d3.scaleOrdinal().domain([0,1,2]).range([0,0.5,1])
             } else {
-                scale = d3.scaleOrdinal().domain([0,1,2,3,4]).range([0,0.25,0.5,0.75,1])
+                // else = 5
+                scale = d3.scaleOrdinal().domain([0,1,2,3,4]).range([0,1,2,3,4])
             }
-            this.modelList[0].score = scale(this.modelList[0].standardScore)
+            return scale(standardScore);
+        },
+        reverseScaleScore(score) {
+            let scale = null;
+            if(this.ratingStandard == 3) {
+                scale = d3.scaleOrdinal().domain([0,0.5,1]).range([0,1,2])
+            } else {
+                // else = 5
+                scale = d3.scaleOrdinal().domain([0,0.25,0.5,0.75,1]).range([0,1,2,3,4])
+            }
+            return scale(score);
+        },
+        onRatingChange(value,index) {
+            console.log('model list index', index, value)
+            // 映射到相应的分数段
+
+            this.modelList[index].score = this.scaleScore(value)
             this.saveOneClick = false;
             this.saveAllClick = false;
         },
@@ -164,6 +198,32 @@ export default {
         saveAllPage() {
             this.saveAllClick = true;
             // save all to database
+        },
+        saveAndGet(model_l,nextPage) {
+            // 保存本页数据
+            model_l.forEach(async model => {
+                try {
+                    const score = model.score? model.score : 0;
+                    console.log("sdcore", score)
+                    const res = await api.saveById(this.currentPage, model.model_id,score);
+                    console.log("save",res.data.message);
+                    // 保存成功后 获取下一页数据
+                    if(nextPage >= 1 && nextPage <= this.pageCount) {
+                        this.$store.dispatch("updateCurrentPage", nextPage);
+                        try {
+                            const response = await api.getPageById(nextPage);
+                            console.log(" page info",response.data);
+                            this.$store.dispatch("updatePageInfo", response.data["page_info"])
+                        }
+                        catch (error) {
+                            console.error('Error getting page:', error)
+                        }
+                    }
+                }
+                catch (error) {
+                    console.error('Error save this page:', nextPage, error)
+                }
+            })
         }
     }
 }
@@ -276,6 +336,14 @@ export default {
     height: 24px;
     box-sizing: border-box;
     flex-basis: 24px;
+}
+::v-deep .p-datatable .p-datatable-thead > tr > th:nth-child(1) {
+    width: 200px;
+    word-wrap: break-word;
+}
+::v-deep .p-datatable .p-datatable-tbody > tr > td:nth-child(1) {
+    width: 200px;
+    word-wrap: break-word;
 }
 </style>
     
