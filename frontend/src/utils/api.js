@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_URL = 'http://localhost:8002/'
+const API_URL = 'http://101.230.144.192:10069/api/'
 
 export default {
     getDatasetList() {
@@ -56,14 +56,15 @@ export default {
             categoryIDs: categoryIDs
         })
     },
-    saveById(pageId, model_id, score = 0) {
+    saveById(pageId,data_info_id, model_id, score = 0) {
         const standard = parseInt(localStorage.getItem("standard"))
         const datasetID = parseInt(localStorage.getItem("datasetID"))
         const tagIDs = JSON.parse(localStorage.getItem("tagIDs"))
         const categoryIDs = JSON.parse(localStorage.getItem("categoryIDs"))
-        console.log("api ",pageId, model_id, score, standard);
+        console.log("api ",pageId, data_info_id,model_id, score, standard);
         pageId = parseInt(pageId,10)
-        return axios.post(`${API_URL}save/${pageId}`, {
+        return axios.post(`${API_URL}save/${pageId}/`, {
+            data_info_id: data_info_id,
             datasetID: datasetID,
             modelID: model_id,
             score: score,
@@ -71,5 +72,18 @@ export default {
             tagIDs: tagIDs,
             categoryIDs: categoryIDs
         })
+    },
+    uploadFile(file) {
+        return axios.post(`${API_URL}upload-file/`, file, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+    },
+    uploadFilePath(file,type) {
+        return axios.post(`${API_URL}upload-file-path/`, {
+            file: file,
+            type: type
+        });
     }
 }

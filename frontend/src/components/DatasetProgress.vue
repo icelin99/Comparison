@@ -155,6 +155,9 @@ export default {
     };
   },
   mounted() {
+    localStorage.removeItem("categoryIDs");
+    localStorage.removeItem("dataset");
+    this.$store.dispatch('updateIsLoading', false); // 挂载完成，隐藏loading
     // this.fetchData();
     this.getDatasetList();
     this.getModelList();
@@ -208,16 +211,20 @@ export default {
         console.log("submit");
         this.canSubmit = false;
         // 存储数据到 local storage
+        const dataset_ = this.datasets.find(item => item.id==this.selectedDataset)
+        this.$store.dispatch("updateDataset",dataset_.name)
+        localStorage.setItem("dataset",dataset_.name);
         localStorage.setItem("datasetID", this.selectedDataset.toString())
         localStorage.setItem("modelIDs", JSON.stringify(this.changeObject2List(this.selectedModel)))
         if(this.selectedTag) {
             localStorage.setItem("tagIDs", JSON.stringify(this.changeObject2List(this.selectedTag)))
         }
         if(this.selectedCategory){
-            localStorage.setItem("modelIDs", JSON.stringify(this.changeObject2List(this.selectedCategory)))
+            localStorage.setItem("categoryIDs", JSON.stringify(this.changeObject2List(this.selectedCategory)))
         }
 
         try {
+            this.$store.dispatch('updateIsLoading', true);
             this.$store.dispatch("updateCurrentPage",1)
             const response = await api.getFilterList(parseInt(localStorage.getItem("datasetID")), JSON.parse(localStorage.getItem("modelIDs")), JSON.parse(localStorage.getItem("tagIDs")),  JSON.parse(localStorage.getItem("categoryIDs")));
             console.log("get li list and first page",response.data);
@@ -225,6 +232,7 @@ export default {
             this.$store.dispatch("updatePageInfo",response.data["page_info"]);
             this.$store.dispatch("updateSelectSubmitted", true);
             this.$store.dispatch("updateAlreadySubmit", true);
+            this.$store.dispatch('updateIsLoading', false); 
         }
         catch (error) {
             console.error('Error getting id list and first page error:', error)
@@ -238,6 +246,7 @@ export default {
         this.selectedCategory = null;
         this.selectedTag = null;
         localStorage.removeItem("datasetID");
+        localStorage.removeItem("dataset");
         localStorage.removeItem("modelIDs");
         localStorage.removeItem("standard");
         localStorage.removeItem("tagIDs");

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException, UploadFile, File
 from typing import Optional, List
 from .database import Dataset, ModelName, Standard, Category, Tag, DataInfo, Result, get_category_by_dataset, get_tags_by_dataset_and_categories, get_filter_results, save_page_by_page
 from tortoise.exceptions import DoesNotExist
@@ -19,12 +19,17 @@ class FilterRequest(BaseModel):
     categoryIDs: Optional[List[int]] = None
 
 class SaveRequest(BaseModel):
+    data_info_id: int
     datasetID: int
     modelID: int
-    score: float
+    score: Optional[float] = None
     standard: int
     tagIDs: Optional[List[int]] = None
     categoryIDs: Optional[List[int]] = None
+
+class PathRequest(BaseModel):
+    file: str
+    type: str
 
 @router.get("/")
 def read_root():
@@ -89,7 +94,7 @@ async def get_filter_list(request: FilterRequest):
     output = await get_filter_results(datasetID,modelIDs, tagIDs,categoryIDs)
     return {"page_count":output["total_page"], "page_info":output["page_info"]}
 
-@router.post("/page/{page_id}")
+@router.post("/page/{page_id}/")
 async def get_page_by_page_id(page_id: int, request: FilterRequest):
     datasetID = request.datasetID
     modelIDs = request.modelIDs
@@ -100,15 +105,30 @@ async def get_page_by_page_id(page_id: int, request: FilterRequest):
     return {"page_count":output["total_page"], "page_info":output["page_info"]}
 
 
-@router.post("/save/{page_id}")
+@router.post("/save/{page_id}/")
 async def save_by_page_id(page_id: int, request: SaveRequest):
     print(f"Received data: {request}")
+    data_info_id = request.data_info_id
     datasetID = request.datasetID
     modelID = request.modelID
     tagIDs = request.tagIDs
     categoryIDs = request.categoryIDs
     score = request.score
     standard = request.standard
-    message = await save_page_by_page(page_id,datasetID,modelID,score,standard,tagIDs,categoryIDs)
+    message = await save_page_by_page(page_id,data_info_id,datasetID,modelID,standard,score,tagIDs,categoryIDs)
     return {"message": message}
-    
+
+@router.post("/upload-file/")
+async def upload_json(file: UploadFile = File(...)):
+    print("file ok")
+    contents = await file.read()
+    return {"filename": file.filename, "content_type": file.content_type}
+
+@router.post("/upload-file-path/")
+async def upload_json_path(request: PathRequest):
+    print("file path ok",request.file)
+    if(request.type == 'dataset'):
+        print("dataset")
+    elif(request.type == "model"):
+        print("model")
+    return {"message": "File uploaded sucessfully"}

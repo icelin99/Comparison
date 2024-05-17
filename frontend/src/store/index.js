@@ -4,11 +4,13 @@ export default createStore({
     state: {
         selectSubmitted: false,
         filterData: [],
-        currentPage: parseInt(localStorage.getItem("currentPage")),
+        currentPage: 1,
         ratingStandard: parseInt(localStorage.getItem("standard")),
         pageInfo: localStorage.getItem("pageInfo"),
         pageCount: parseInt(localStorage.getItem("pageCount")),
         alreadySubmit: false,
+        isLoading: true,
+        dataset: null,
     },
     mutations: {
         set_selectSubmitted(state, data) {
@@ -48,6 +50,13 @@ export default createStore({
         },
         set_alreadySubmit(state, alreadySubmit) {
             state.alreadySubmit = alreadySubmit;
+        },
+        set_loading(state, loading) {
+            state.isLoading = loading;
+        },
+        set_dataset(state,dataset) {
+            console.log("store dataset",dataset)
+            state.dataset = dataset;
         }
     },
     actions: {
@@ -71,6 +80,12 @@ export default createStore({
         },
         updateAlreadySubmit({commit}, alreadySubmit) {
             commit('set_alreadySubmit',alreadySubmit);
+        },
+        updateIsLoading({commit}, loading) {
+            commit('set_loading', loading);
+        },
+        updateDataset({commit},name) {
+            commit('set_dataset',name);
         }
     },
     getters: {
@@ -82,5 +97,7 @@ export default createStore({
         ratingStandard: state => state.ratingStandard,
         pageInfo: state => state.pageInfo,
         alreadySubmit: state => state.alreadySubmit,
+        loading: state => state.isLoading,
+        dataset: state => state.dataset,
     }
 })

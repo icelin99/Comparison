@@ -11,7 +11,8 @@ module.exports = {
       parser: 'babel-eslint'
     },
     rules: {
-      'vue/no-unused-components': 'off'  // 禁用未使用组件规则
+      'vue/no-unused-components': 'off',  // 禁用未使用组件规则
+      "vue/no-v-model-argument": "off"
     }
   };
   

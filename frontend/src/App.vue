@@ -1,5 +1,6 @@
 <template>
 <div>
+  <LoadingComponent />
   <EvaHeader />
   <div :style="{height:'20%', width:'98%', top: '45px',position:'fixed'}"><DataSetProgress /></div>
   <div :style="{height:'80%', width:'98%'}"><ImageModel /></div>
@@ -11,13 +12,20 @@
 import DataSetProgress from './components/DatasetProgress.vue'
 import ImageModel from './components/ImageModel.vue'
 import EvaHeader from './components/EvaHeader.vue'
+import LoadingComponent from './components/LoadingComponent.vue'
+import MenuBar from './components/MenuBar.vue'
 
 export default {
   name: 'App',
   components: {
     DataSetProgress,
     ImageModel,
-    EvaHeader
+    EvaHeader,
+    LoadingComponent,
+    MenuBar
+  },
+  mounted() {
+    this.$store.dispatch('updateIsLoading', false); // 挂载完成，隐藏loading
   }
 }
 </script>
@@ -32,6 +40,7 @@ export default {
   margin-top: 10px;
   margin-right:10px;
   padding: 0 20px 10px 0;
+  overflow: scroll;
 }
 
 </style>
