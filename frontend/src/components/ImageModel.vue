@@ -1,25 +1,52 @@
 <template>
 <div>
-    <div v-if="isShow" style="display: flex; flex-direction: row; width: 100%; max-height: calc(100% - 90px); overflow-y: auto; position:fixed; top: 45px">
+    <div v-if="isShow" class="ct-container">
+        <div>Category<MultiSelect :options="categories" v-model="selectedCategory"  optionValue="id" optionLabel="name" filter showClear @change="onCategoryChange(index)" :style="{ minWidth: '150px' }" /></div>
+        <div>Tag <MultiSelect :options="tags" v-model="selectedTag"  optionValue="id" optionLabel="name" filter showClear @change="onTagChange(index)" :style="{ minWidth: '150px' }"  />
+        </div>
+        <div class="select-btn-container">
+            <Button  icon="pi pi-times" class="p-button-clear custom-clear-button" @click="clearData" />
+            <Button icon="pi pi-search" class="p-button-query custom-query-button" @click="queryData" />
+        </div>
+    </div>
+    <div v-if="isShow" style="display: flex; flex-direction: row; width: 100%; max-height: calc(100% - 90px); overflow-y: auto; position:fixed; top: 95px; bottom:40px;">
         <div :style="{width: '40%', height: '100%'}">
             <div style="display: flex; flex-direction: column; width: '100%'; height: '100%'; align-items: center;">
-                <div class="image-container"><img :src="img_path" alt="Can't find image"></div>
-                <div class="text-container"><div class="text-text">Image Path:</div><div class="image-path" @mouseover="startScroll" @mouseleave="stopScroll" >{{pageInfo[0].image_path}}</div></div>
-                <div class="text-container"><div class="text-text">Question: </div><div class="text-border"> {{pageInfo[0].question}}</div></div>
-                <div class="text-container"><div class="text-text">Category: </div>
+                <div class="image-container" @dblclick="openModal('image', img_path)">
+                    <img :src="img_path" alt="Can't find image">
+                  </div>
+                  <div v-if="isModalOpen" class="modal" @click="closeModal">
+                    <span class="close"  @click="closeModal" >&times;</span>
+                    <div class="modal-content" @click.stop>
+                        <template v-if="modalType === 'image'">
+                          <img :src="modalContent" alt="Image preview" class="img-preview"
+                          @wheel="zoomImage" 
+                          @mousedown="startDragging"
+                          @mouseleave="stopDragging"
+                            :style="imageStyle">
+                        </template>
+                        <template v-else>
+                          <div>{{ modalContent }}</div>
+                        </template>
+                      </div>
+                  </div>
+
+                <div class="text-container"><div class="text-text">Category</div>
                     <div class="tag-container">
                         <div v-for="(item, index) in category" :key="index" class="tag-list">
                             <Tag severity="success" :style="{backgroundColor:colorScale(item),color:'#696969'}"> {{ item }}</Tag>
                         </div>
                     </div>
                 </div>
-                <div class="text-container"><div class="text-text">Tag:</div>
+                <div class="text-container"><div class="text-text">Tag</div>
                     <div class="tag-container">
                         <div v-for="(item, index) in tag" :key="index" class="tag-list">
                             <Tag severity="success" :style="{backgroundColor:colorScale(item),color:'#696969'}"> {{ item }}</Tag>
                         </div>
                     </div>
                 </div>
+                <div class="text-container"><div class="text-text">图片地址</div><div class="image-path" @dblclick="openModal('text', pageInfo[0].image_path)" >{{pageInfo[0].image_path}}</div></div>
+                <div class="text-container"><div class="text-text">问题</div><div class="text-border" @dblclick="openModal('text', pageInfo[0].question)"> {{pageInfo[0].question}}</div></div>
             </div>
         </div>
         <div :style="{width: '60%', height: '100%'}">
@@ -54,7 +81,7 @@
             </div>
         </div>
     </div>
-    <div v-if="isShow" class="page-change" style="display: flex; flex-direction: column; width: '100%';">
+    <div v-if="isShow&&!isModalOpen" class="page-change" style="display: flex; flex-direction: column; width: '100%';">
         <div class="save-button">
             <!-- <Button style="margin-right: 20px; background-color: cornflowerblue;" v-if="!saveOneClick" label="Save this page"  @click="saveOnePage"  /> -->
             <!-- <Button style="margin-right: 20px; background-color: cornflowerblue;" v-if="saveOneClick" label="This page saved ✔️" disabled="true" /> -->
@@ -75,9 +102,6 @@
 
 <script>
 import * as d3 from 'd3'
-import Image from './Image.vue'
-import Model from './Model.vue'
-import Dropdown from 'primevue/dropdown'
 import {mapGetters, mapMutations} from "vuex"
 import Button from 'primevue/button'
 import InputNumber from 'primevue/inputnumber'
@@ -87,24 +111,23 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import api from '@/utils/api'
 import MarkdownIt from 'markdown-it'
+import MultiSelect from 'primevue/multiselect'
 
 
 
 export default {
     name: 'App',
     components: {
-        Image,
-        Model,
-        Dropdown,
         Button,
         InputNumber,
         Tag,
         Rating,
         DataTable,
         Column,
+        MultiSelect
     },
     computed: {
-        ...mapGetters(["selectSubmitted","currentData", "pageCount", "currentPage","ratingStandard", "pageInfo"]),
+        ...mapGetters(["selectSubmitted","currentData", "pageCount", "currentPage","ratingStandard", "pageInfo", "categoryList", "tagList"]),
         parsedAnswers() {
             const result = {};
             this.modelList.forEach(model => {
@@ -140,6 +163,17 @@ export default {
         },
         currentPage(newVal) {
             console.log("current page",newVal)
+        },
+        categoryList(newVal) {
+            this.selectedCategory = null;
+            console.log("getting new category list", newVal);
+            this.categories = newVal;
+            console.log(this.categories)
+        },
+        tagList(newVal) {
+            this.selectedTag = null;
+            console.log("getting new tag list", newVal);
+            this.tags = newVal;
         }
 
     },
@@ -164,32 +198,74 @@ export default {
             img_path: "",
             data_info_id: null,
             scrollInterval: null,
-            markdown: new MarkdownIt()
+            markdown: new MarkdownIt(),
+            isModalOpen: false,
+            modalType: 'text', // 'text' or 'image'
+            modalContent: '', // Content to display in modal
+            selectedCategory: null,
+            selectedTag: null,
+            categories: [],
+            tags: [],
+            zoomLevel: 1,
+            isDragging: false,
+            startX: 0,
+            startY: 0,
+            translateX: 0,
+            translateY: 0,
+            imageStyle: {
+                transform: 'scale(1)  translate(0px, 0px)',
+                cursor: 'grab'
+            },
+            pageEdit: []
         }
     },
     methods: {
         ...mapMutations(['nextItem','prevItem','setPage']),
         startScroll(event) {
-            const target = event.target;
-            if (target.scrollWidth > target.clientWidth) {
-                // 如果内容宽度大于容器宽度，则开始滚动
-                this.scrollInterval = setInterval(() => {
-                if (target.scrollLeft < target.scrollWidth - target.clientWidth) {
-                    target.scrollLeft++;
-                } else {
-                    target.scrollLeft = 0; // 重新开始滚动
-                }
-                }, 20);
-            }
+            console.log("event",event.target);
+            event.target.classList.add('scrollable');
         },
-        stopScroll() {
-            clearInterval(this.scrollInterval); // 停止滚动
+        stopScroll(event) {
+            console.log("event",event.target);
+            event.target.classList.remove('scrollable');
+            // clearInterval(this.scrollInterval); // 停止滚动
+        },
+        startDrag(event) {
+            this.isDragging = true;
+            this.startX = event.pageX - event.target.offsetLeft;
+            this.scrollLeft = event.target.scrollLeft;
+            event.target.style.cursor = 'grabbing'; // 改变鼠标指针为抓取状态
+        },
+        stopDrag(event) {
+            this.isDragging = false;
+            event.target.style.cursor = 'grab'; // 恢复鼠标指针为抓手状态
+        },
+        drag(event) {
+            if (!this.isDragging) return;
+            event.preventDefault();
+            const x = event.pageX - event.target.offsetLeft;
+            const walk = x - this.startX; // 计算鼠标移动距离
+            event.target.scrollLeft = this.scrollLeft - walk; // 滚动内容
+        },
+        openModal(type, content) {
+            this.modalType = type;
+            this.modalContent = content;
+            this.isModalOpen = true;
+            this.zoomLevel = 1;
+            this.translateX = 0;
+            this.translateY = 0;
+            this.updateImageStyle();
+        },
+        closeModal() {
+        this.isModalOpen = false;
         },
         renderMarkdown(content) {
             if(content == null){
                 return null;
             }
-            return this.markdown.render(content);
+            // 去掉字符串中的\n
+            const sanitizedInput = content.replace(/\\n/g, '\n').replace(/^```markdown/, '').replace(/```$/, '');
+            return this.markdown.render(sanitizedInput);
         },
         async nextPage() {
             // 获取下一页数据
@@ -231,9 +307,12 @@ export default {
         onRatingChange(score, index) {
             console.log('model list index', index)
             // 映射到相应的分数段
-            if(this.ratingStandard == 3) 
             this.modelList[index].score = this.scaleScore(score);
             console.log("new score",this.modelList[index].score)
+            // 记录修改的索引
+            if (!this.pageEdit.includes(index)) {
+                this.pageEdit.push(index);
+            }
             // // this.modelList[index].score = this.scaleScore(value)
 
             // this.saveOneClick = false;
@@ -247,36 +326,165 @@ export default {
             this.saveAllClick = true;
             // save all to database
         },
-        saveAndGet(model_l,nextPage,isJump=false) {
-            // 保存本页数据
-            model_l.forEach(async model => {
+        async saveAndGet(model_l,nextPage,isJump=false) {
+            if(this.pageEdit && this.pageEdit.length && this.pageEdit.length > 0) {
+                // 保存本页数据
+                const modelList = this.pageEdit.map(index => ({
+                    "modelID": model_l[index].model_id,
+                    "score": model_l[index].score,
+                    "standard": parseInt(localStorage.getItem("standard"),10)
+                }))
+                console.log("修改了的model list",modelList)
                 try {
-                    const score = model.score;
-                    console.log("sdcore", score)
-                    const res = await api.saveById(this.currentPage,this.data_info_id, model.model_id,score);
+                    const res = await api.saveById(this.currentPage,this.data_info_id, modelList);
                     console.log("save",res.data.message);
-                    // 保存成功后 获取下一页数据
-                    if(nextPage >= 1 && nextPage <= this.pageCount) {
-                        this.$store.dispatch("updateCurrentPage", nextPage);
-                        this.$store.dispatch("updateIsLoading", true);
-                        try {
-                            const response = await api.getPageById(nextPage);
-                            console.log(" page info",response.data);
-                            this.$store.dispatch("updateIsLoading", false);
-                            this.$store.dispatch("updatePageInfo", response.data["page_info"])
-                            if(isJump) {
-                                this.jumpPage = null;
-                            }
-                        }
-                        catch (error) {
-                            console.error('Error getting page:', error)
-                        }
-                    }
                 }
                 catch (error) {
                     console.error('Error save this page:', nextPage, error)
                 }
-            })
+            }
+            if(nextPage >= 1 && nextPage <= this.pageCount) {
+                this.$store.dispatch("updateCurrentPage", nextPage);
+                this.$store.dispatch("updateIsLoading", true);
+                try {
+                    let category_list = null;
+                    if(this.selectedCategory) {
+                        category_list = this.changeObject2List(this.selectedCategory);
+                    }
+                    let tag_list = null;
+                    if(this.selectedTag) {
+                        tag_list = this.changeObject2List(this.selectedTag);
+                    }
+                    const response = await api.getPageById(nextPage,parseInt(localStorage.getItem("datasetID"),10),JSON.parse(localStorage.getItem("modelIDs")),tag_list,category_list);
+                    console.log(" page info",response.data);
+                    this.$store.dispatch("updateIsLoading", false);
+                    this.$store.dispatch("updatePageInfo", response.data["page_info"])
+                    if(isJump) {
+                        this.jumpPage = null;
+                    }
+                    this.pageEdit = [];
+                }
+                catch (error) {
+                    console.error('Error getting page:', error)
+                }
+            }
+            
+        },
+        async getTagList(datasetID, modelIds=[], catregoryIds=[]) {
+            try {
+                const response = await api.getTagList(datasetID, modelIds,catregoryIds);
+                console.log("response",response.data);
+                this.tags = response.data;
+            }
+            catch (error) {
+                console.error('Error getting tag list:', error)
+            }
+        },
+        async getCategoryList(datasetID, modelIds, tagIds = []) {
+            try {
+                const response = await api.getCategoryList(datasetID, modelIds,tagIds);
+                console.log("response",response.data);
+                this.categories = response.data;
+            }
+            catch (error) {
+                console.error('Error getting category list:', error)
+            }
+        },
+        onTagChange() {
+            console.log("select tag:",this.changeObject2List(this.selectedTag));
+            if(this.selectedTag) {
+                
+                const tag_list = this.changeObject2List(this.selectedTag);
+                console.log("!!!!!!!!!!!!!!!! xuan ze le", tag_list)
+                this.getCategoryList(parseInt(localStorage.getItem("datasetID"),10),JSON.parse(localStorage.getItem("modelIDs")), tag_list);
+            } else {
+                this.getCategoryList(parseInt(localStorage.getItem("datasetID"),10),JSON.parse(localStorage.getItem("modelIDs")))
+            }
+        },
+        onCategoryChange() {
+            console.log("select:",this.changeObject2List(this.selectedCategory));
+            if(this.selectedCategory) {
+                const category_list = this.changeObject2List(this.selectedCategory);
+                this.getTagList(parseInt(localStorage.getItem("datasetID"),10),JSON.parse(localStorage.getItem("modelIDs")), category_list);
+            } else {
+                this.getTagList(parseInt(localStorage.getItem("datasetID"),10),JSON.parse(localStorage.getItem("modelIDs")));
+            }
+        },
+        changeObject2List(object) {
+            console.log(object, Object.values(object))
+            return Object.values(object);
+        },
+        zoomImage(event) {
+            const scaleAmount = 0.1;
+            if (event.deltaY < 0) {
+                this.zoomLevel += scaleAmount;
+            } else {
+                this.zoomLevel -= scaleAmount;
+                if (this.zoomLevel < 1) {
+                    this.zoomLevel = 1;
+                }
+            }
+            this.updateImageStyle();
+        },
+        startDragging(event) {
+            console.log("start dragging",this.zoomLevel)
+            event.preventDefault();
+            if (this.zoomLevel > 1) {
+                this.isDragging = true;
+                this.startX = event.clientX - this.translateX;
+                this.startY = event.clientY - this.translateY;
+                this.imageStyle.cursor = 'grabbing';
+                window.addEventListener('mousemove', this.dragImage);
+                window.addEventListener('mouseup', this.stopDragging);
+            }
+        },
+        dragImage(event) {
+            
+            if (this.isDragging) {
+                console.log("dragImage",event)
+                this.translateX = event.clientX - this.startX;
+                this.translateY = event.clientY - this.startY;
+                this.updateImageStyle();
+            }
+        },
+        stopDragging() {
+            if (this.isDragging) {
+                this.isDragging = false;
+                this.imageStyle.cursor = 'grab';
+            }
+        },
+        updateImageStyle() {
+            this.imageStyle.transform = `scale(${this.zoomLevel}) translate(${this.translateX}px, ${this.translateY}px)`;
+        },
+        clearData() {
+            this.selectedCategory = null;
+            this.selectedTag = null;
+            this.categories = this.categoryList;
+            this.tags = this.tagList;
+            this.queryData();
+        },
+        async queryData() {
+            let category_list = null;
+            if(this.selectedCategory) {
+                category_list = this.changeObject2List(this.selectedCategory);
+            }
+            let tag_list = null;
+            if(this.selectedTag) {
+                tag_list = this.changeObject2List(this.selectedTag);
+            }
+            try {
+                this.$store.dispatch('updateIsLoading', true);
+                this.$store.dispatch("updateCurrentPage",1);
+                const res = await api.getFilterList(parseInt(localStorage.getItem("datasetID"),10),JSON.parse(localStorage.getItem("modelIDs")),tag_list,category_list);
+                console.log("query data",res.data);
+                this.$store.dispatch("updatePageCount",res.data["page_count"]);
+                this.$store.dispatch("updatePageInfo",res.data["page_info"]);
+                this.$store.dispatch('updateIsLoading', false);
+            }
+            catch (error) {
+                console.error('Error getting filter list and first page:', error)
+            }
+            
         }
     }
 }
@@ -303,30 +511,60 @@ export default {
 .image-container {
     width: 450px;
     overflow: hidden;
+    cursor: pointer;
 }
 .image-container  img {
     width: 98%;
     object-fit: contain;
+    transition: transform 0.3s ease;
+}
+.modal {
+    display: flex;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.9);
+    align-items: center;
+    justify-content: center;
+}
+.close {
+    position: absolute;
+    top: 15px;
+    right: 35px;
+    color: #fff;
+    font-size: 40px;
+    font-weight: bold;
+    cursor: pointer;
+}
+.modal-content {
+    margin: auto;
+    display: block;
+    max-width: 80%;
+    max-height: 80%;
 }
 .text-container {
     width: 98%;
     display: flex;
     flex-direction: row;
-    padding-left: 20px;
-    padding-right: 20px;
-    padding-top: 5px;
-    padding-bottom: 5px;
+    margin-top: 10px;
+    padding: 5px 0;
     overflow: hidden;
-    position: relative;
+    align-items: center;
+   /* position: relative; */
 }
 .text-border {
     border: 1px solid skyblue;
     border-radius: 5px;
     padding: 5px;
-    margin-left: 20px;
+    /*margin-left: 20px; */
     background-color: rgba(135,206,250,0.6);
-    position: absolute;
-    left: 75px;
+   /* position: absolute; */
+    /* left: 75px; */
+    cursor: pointer;
 }
 .page-change {
     bottom: 0;
@@ -345,7 +583,7 @@ export default {
 .tag-container {
     display: flex;
     flex-wrap: wrap; /* 允许元素在需要时换行 */
-    left: 75px; /* 从左侧70px处开始显示标签 */
+    
   }
 .tag-list {
     /* margin-left: 15px; */
@@ -399,19 +637,113 @@ export default {
     background-color: rgba(135,206,250,0.6);
     border-radius: 5px;
     padding: 5px;
-    margin-left: 20px;
-    left: 70px;
+    /*margin-left: 20px;
+    left: 70px; */
+    overflow: hidden;
+}
+.scrollable {
+    animation: scrollText 5s linear infinite; /* 设置滚动动画 */
+}
+.modal {
+    display: flex;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(198, 198, 198, 0.9);
+    align-items: center;
+    justify-content: center;
+}
+.close {
     position: absolute;
+    top: 15px;
+    right: 35px;
+    color: #fff;
+    font-size: 40px;
+    font-weight: bold;
+    cursor: pointer;
+} 
+.modal-content img {
+    margin: auto;
+    display: block;
+    max-width: 90vw; /* 最大宽度为视口宽度的90% */
+    max-height: 90vh; /* 最大高度为视口高度的90% */
+    object-fit: contain; /* 保持纵横比并适应容器 */
+}
+.modal-content {
+    margin: auto;
+    display: block;
+    max-width: 80%;
+    max-height: 80%;
+    color: white; /* 如果是文本内容，则设置文本颜色为白色 */
+    background-color: rgba(255, 255, 255, 0); /* 设置背景颜色为黑色 */
+    padding: 20px; /* 为文本内容添加一些内边距 */
+    font-size: 3rem;
+  }
+@keyframes scrollText {
+    0% {
+        transform: translateX(100%);
+    }
+    100% {
+        transform: translateX(-100%);
+    }
 }
 .text-text {
-    width: 75px;
+    min-width: 75px;
     font-weight: bold;
+    height: 20px;
+    line-height: 15px;
+    text-align: start;
+}
+.ct-container {
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid #ddd;
+    height: 50px;
+    top:45px;
+    position:fixed;
+    width: 100%;
+    padding-left: 300px;
+    padding-right: 300px;
+    font-family: 'Arial', sans-serif; 
+    font-weight: bold;
+    padding-top:5px;
+}
+
+.select-btn-container {
+    display: flex;
+    gap:1rem;
+    align-items: center; /* 垂直居中 */
+  justify-content: center; /* 水平居中 */
+  padding-bottom:7px;
+}
+.custom-clear-button {
+    background-color: #fbd6d6; 
+    border-color: #e9d6d6;
+    color: rgb(84, 84, 84);
+}
+  
+.custom-clear-button:hover {
+    background-color: #fff3f3; 
+}
+  
+.custom-query-button {
+    background-color: #dceeff; 
+    border-color: #edf6ff;
+    color: rgb(84, 84, 84);
+}
+  
+.custom-query-button:hover {
+    background-color: #f1f8ff; 
 }
 </style>
 <style scoped>
 
 ::v-deep .p-dropdown {
-  height: 50px !important; /* Set your desired item height */
+  height: 25px !important; /* Set your desired item height */
   align-items: center;
 }
 ::v-deep .p-button {
@@ -445,6 +777,9 @@ export default {
 ::v-deep .p-datatable .p-datatable-tbody > tr > td:nth-child(1) {
     width: 200px;
     word-wrap: break-word;
+}
+::v-deep .p-tag {
+    font-size: 0.9rem;
 }
 
 </style>

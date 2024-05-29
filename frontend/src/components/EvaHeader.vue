@@ -7,12 +7,18 @@
                     <div  class="sidebar-item">
                         <Button @click="clearClick">清空所选项</Button></div>
                     <div  class="sidebar-item"><Button @click="fileShow = true">上传JSON文件</Button></div>
-                    <div  class="sidebar-item"><Button >存取数据</Button></div>
-                    <div  class="sidebar-item"><Button >准确率表格</Button></div>
+                    <div  class="sidebar-item"><Button @click="saveShow = true">查看打分结果</Button></div>
+                    <div  class="sidebar-item">
+                        <Button @click="seeAccuracy" >准确率表格</Button>
+                    </div>
+                    <div  class="sidebar-item">
+                        <Button @click="goMarkdown" >Markdown 编译</Button>
+                    </div>
 
             </div>
         </Sidebar>
         <Dialog v-model:visible="fileShow" modal header="上传json文件" :style="{ width: '25rem' }">
+           
             <span class="p-text-secondary block mb-5">请选择上传形式</span>
             <div class="mt-3 mb-3 flex align-items-center">
                 <RadioButton v-model="uploadMethod" inputId="uploadFile" name="uploadMethod" value="file" />
@@ -23,7 +29,8 @@
                 <label for="ingredient2" class="ml-2">上传绝对地址</label>
             </div>
             <div v-if="uploadMethod === 'file'" class="mt-5 mb-5">
-                <input type="file" name="file" accept=".json" @change="onFileUpload" />
+                <input type="file" name="file" accept=".json,.jsonl" @change="onFileUpload" />
+                <p>文件大小请不要超过10M</p>
                 <div class="mt-3 mb-3">
                     <RadioButton v-model="fileType" inputId="type4" name="fileType" value="result" />
                     <label for="ingredient1" class="ml-2">result</label>
@@ -32,7 +39,9 @@
                 </div>
               </div>
               <div v-else-if="uploadMethod === 'path'" class="mt-5 mb-5">
-                <InputText v-model="filePath" :style="{width: '18rem'}" placeholder="请输入绝对地址" />
+                <InputText v-model="filePath" :style="{width: '18rem'}" placeholder="请输入绝对地址" @blur="validatePath"/>
+                <p v-if="pathType == 'dataset'">请输入dataset目录的绝对地址</p>
+                <p v-if="pathType == 'result' || pathType == 'score'">请输入文件的绝对地址</p>
                 <div class="mt-3 mb-3">
                     <RadioButton v-model="pathType" inputId="type1" name="pathType" value="dataset" />
                     <label for="ingredient1" class="ml-2">dataset</label>
@@ -41,15 +50,35 @@
                     <RadioButton v-model="pathType" inputId="type3" name="pathType" value="score" />
                     <label for="ingredient1" class="ml-2">model score</label>
                 </div>
-                
+                <p v-if="!isPathValid" style="color: red;">请输入一个有效的绝对地址</p>
               </div>
-        
+              
               <div class="mt-4 flex justify-content-end">
                 <Button label="取消" icon="pi pi-times" class="p-button-text" @click="fileShow = false" />
                 <Button label="提交" icon="pi pi-check" class="p-button-text" @click="submitFile" />
               </div>
         </Dialog>
-        
+        <Dialog v-model:visible="saveShow" modal header="请选择需要下载的参数" :style="{ width: '50rem' }">
+            <div class="p-fluid">
+                <div>
+                    <div style="font-weight: bold; padding: 0.5em;">Dataset</div>
+                    <Dropdown :options="datasets" optionLabel="name" optionValue="id" v-model="selectedDataset" placeholder="select a dataSet" filter showClear @change="onDatasetChange()" />
+                </div>
+                <div>
+                    <div style="font-weight: bold; padding: 0.5em;">Model</div>
+                    <Dropdown v-model="selectedModel" :options="models" optionLabel="name" optionValue="id" placeholder="Select a model"  filter showClear @change="onModelChange()"/>
+                </div>
+                <div>
+                    <div style="font-weight: bold; padding: 0.5em;">Standard</div>
+                    <Dropdown v-model="selectedStandard" :options="standards" optionLabel="name" optionValue="name" placeholder="Select a model"  filter showClear @change="onStandardChange()"/>
+                </div>
+                <Button label="Submit" @click="fetchSaveData" />
+            </div>
+        </Dialog>
+        <Dialog v-model:visible="showMarkdown" modal header="Markdown编辑器" :style="{ width: '80rem' }" >
+            <MardownEditor />
+        </Dialog>
+        <Toast ref="toast" />
     </div>
 </template>
 
@@ -62,6 +91,11 @@ import RadioButton from "primevue/radiobutton";
 import FileUpload from "primevue/fileupload";
 import InputText from "primevue/inputtext";
 import api from '@/utils/api';
+import Dropdown from "primevue/dropdown";
+import Message from "primevue/message";
+import Toast from "primevue/toast";
+import MardownEditor from "./MardownEditor.vue";
+// import { download } from "@/utils/download";
 
 export default {
     name: 'EvaHeader',
@@ -72,11 +106,20 @@ export default {
         RadioButton,
         FileUpload,
         InputText,
+        Dropdown,
+        Message,
+        Toast,
+        MardownEditor
     },
     computed: {
         ...mapGetters(["filterData","alreadySubmit","dataset"])
     },
     watch: {
+    },
+    mounted() {
+        this.getDatasetList();
+        this.getModelList();
+        this.getStandardList();
     },
     data() {
         return {
@@ -87,6 +130,18 @@ export default {
             uploadedFile: null,
             pathType: null,
             fileType: null,
+            saveShow: false,
+            selectedDataset: null,
+            selectedModel: null,
+            selectedStandard: null,
+            datasets: null,
+            models: null,
+            standards: null,
+            isPathValid: true,
+            messageVisible: false,
+            messageSeverity: null,
+            messageText: null,
+            showMarkdown: false,
         }
     },
     methods: {
@@ -105,10 +160,12 @@ export default {
                 if(this.uploadedFile) {
                     if(this.fileType) {
                         try {
-                            const formData = new FormData();
-                            formData.append('file',this.uploadedFile);
-                            const res = await api.uploadFile(formData);
-                            console.log('上传成功:', res.data);
+                            const res = await api.uploadFile(this.uploadedFile,this.fileType);
+                            if(res.data.error){
+                                alert("上传失败")
+                            }else{
+                                console.log('上传成功:', res.data);
+                            }
                             this.fileShow = false;
                             this.uploadedFile = null;
                         }
@@ -126,15 +183,18 @@ export default {
                 if(this.filePath) {
                     console.log('上传绝对地址:', this.filePath);
                     if(this.pathType) {
-                        try {
-                            const res = await api.uploadFilePath(this.filePath,this.pathType);
-                            console.log("res",res);
-                            this.fileShow = false;
-                            this.pathType = null;
+                        const res = await api.uploadFilePath(this.filePath,this.pathType);
+                        console.log("res",res);
+                        if(res.data["success"]) {
+                            window.location.reload();
+                            this.showToast('success','Success',res.data["success"])
+                        } else if(res.data["error"]) {
+                            this.showToast('error','Error', res.data["error"])
                         }
-                        catch(error) {
-                            alert('上传失败:', error)
-                        }
+                        this.fileShow = false;
+                        this.pathType = null;
+                        this.filePath = null;
+                    
                     } else {
                         alert('选择路径的类型！')
                     }
@@ -142,7 +202,93 @@ export default {
                     alert('请填写文件路径');
                 }
             }
+        },
+        async getDatasetList() {
+            try {
+                const response = await api.getDatasetList();
+                console.log("response",response.data);
+                this.datasets = response.data;
+            }
+            catch (error) {
+                console.error('Error getting dataset list:', error)
+            }
+        },
+        async getModelList(datasetId = null) {
+            try {
+                const response = await api.getModelList(datasetId);
+                console.log("response model",response.data);
+                this.models = response.data;
+            }
+            catch (error) {
+                console.error('Error getting model list:', error)
+            }
+        },
+        async getStandardList() {
+            try {
+                const response = await api.getStandardList();
+                console.log("response",response.data);
+                this.standards = response.data;
+            }
+            catch (error) {
+                console.error('Error getting dtandard list:', error)
+            }
+        },
+        onDatasetChange() {
+            if(!this.selectedDataset) {
+                this.models = [];
+            } else {
+                this.getModelList(this.selectedDataset);
+            }
+        },
+        onModelChange() {
+            console.log(this.selectedModel)
+        },
+        onStandardChange() {
+            console.log(this.selectedStandard)
+        },
+        async fetchSaveData() {
+            try {
+                const res = await api.fetchSaveData(this.selectedDataset,this.selectedModel,this.selectedStandard);
+                console.log("response",res.data,res.headers);
+                if(res.data.error) {
+                    alert(res.data.error)
+                } else {
+                    const { file_content, file_name } = res.data;
+                    const type = 'application/json';
+
+                    const blob = new Blob([file_content], { type });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = file_name;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+
+                    this.selectedDataset = null;
+                    this.selectedModel = null;
+                    this.selectedStandard = null;
+                }
+                
+            }catch (error) {
+                console.error('Error fetching save data:', error)
+            }
+        },
+        validatePath() {
+            const absolutePathPattern = /^(?:\/|(?:[a-zA-Z]:)?\\|\\\\)/;
+            this.isPathValid = absolutePathPattern.test(this.filePath);
+        },
+        seeAccuracy() {
+            this.showToast('error',"Error",'good')
+        },
+        showToast(severity,summary,detail){
+            this.$refs.toast.add({ severity: severity, summary: summary, detail: detail, life: 2000 })
+        },
+        goMarkdown() {
+            this.showMarkdown = true;
         }
+        
 
     }
 }

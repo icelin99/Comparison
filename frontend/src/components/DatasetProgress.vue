@@ -54,54 +54,15 @@
                 <Dropdown :options="standards" v-model="selectedStandard"  optionValue="id" optionLabel="name" placeholder="select standard" filter showClear @change="onStandardChange(index)" :disabled="index != active"  />
             </div>
         </template>
-        <template #content="{ index, prevCallback,nextCallback }">
+        <template #content="{ index, prevCallback }">
             <div class="flex pt-4 justify-content-end" style="display: flex;">
                 <Button label="Back" severity="secondary" icon="pi pi-arrow-left" style="margin-right:auto; display: block;" @click="PrevCallback(index, prevCallback)" />
                 <Button label="Submit" v-if="canSubmit" icon="pi pi-check" iconPos="right" style="background-color: mediumaquamarine;border-color: aliceblue;"   @click="submitData" />
-                <Button label="Next" :disabled="!canSubmit" icon="pi pi-arrow-right" iconPos="right" :style="{marginLeft:'auto', backgroundColor: hover? 'rgba(100,150,237,0.5)':'#6495ed', color:hover?'#46566d': '#ffffff'}"  @click="NextCallback(index, nextCallback)"  @mouseover="hover = true" @mouseleave="hover = false" />
+                <!-- <Button label="Next" :disabled="!canSubmit" icon="pi pi-arrow-right" iconPos="right" :style="{marginLeft:'auto', backgroundColor: hover? 'rgba(100,150,237,0.5)':'#6495ed', color:hover?'#46566d': '#ffffff'}"  @click="NextCallback(index, nextCallback)"  @mouseover="hover = true" @mouseleave="hover = false" /> -->
             </div>
         </template>
     </StepperPanel>
-    <StepperPanel>
-        <template #header="{ index }">
-            <div class="header-container">
-                <!-- <button class="custom-button" @click="updateActive(index); clickCallback();"> -->
-                <span :class="['step-indicator', { 'active': index < active, 'inactive': index >= active }]">
-                    4
-                </span>
-                <!-- </button> -->
-                <div style="font-weight: bold; padding: 0.5em;">Category</div>
-                <MultiSelect :options="categories" v-model="selectedCategory"  optionValue="id" optionLabel="name" placeholder="select category" filter showClear @change="onCategoryChange(index)" :disabled="index != active" />
-            </div>
-        </template>
-        <template #content="{ index, prevCallback, nextCallback }" >
-            <div class="flex pt-4 justify-content-end" style="display: flex;">
-                <Button label="Back" severity="secondary" icon="pi pi-arrow-left" style="margin-right:auto;" @click="PrevCallback(index, prevCallback)" />
-                <Button label="Submit" v-if="canSubmit" icon="pi pi-check" iconPos="right" style="background-color: mediumaquamarine;border-color: aliceblue;"   @click="submitData" />
-                <Button label="Next" icon="pi pi-arrow-right" iconPos="right" :style="{marginLeft:'auto', backgroundColor: hover? 'rgba(100,150,237,0.5)':'#6495ed', color:hover?'#46566d': '#ffffff'}" @click="NextCallback(index, nextCallback)"  @mouseover="hover = true" @mouseleave="hover = false" />
-            </div>
-        </template>
-    </StepperPanel>
-    <StepperPanel>
-        <template #header="{ index }">
-            <div class="header-container">
-                <!-- <button class="custom-button" @click="updateActive(index); clickCallback();"> -->
-                <span :class="['step-indicator', { 'active': index < active, 'inactive': index >= active }]">
-                    5
-                </span>
-                <!-- </button> -->
-                <div style="font-weight: bold; padding: 0.5em;">Tag</div>
-                <MultiSelect :options="tags" v-model="selectedTag"  optionValue="id" optionLabel="name" placeholder="select a tag" filter showClear @change="onTagChange(index)" :disabled="index != active" />
-            </div>
-        </template>
-        <template #content="{ index, prevCallback, nextCallback }" >
-            <div class="flex pt-4 justify-content-end" style="display: flex;">
-                <Button label="Back" severity="secondary" icon="pi pi-arrow-left" style="margin-right:auto;" @click="PrevCallback(index, prevCallback)" />
-                <Button label="Submit" v-if="canSubmit" icon="pi pi-check" iconPos="right" style="background-color: mediumaquamarine;border-color: aliceblue;"   @click="submitData" />
-                <Button label="Next" icon="pi pi-arrow-right" iconPos="right" :style="{marginLeft:'auto', backgroundColor: hover? 'rgba(100,150,237,0.5)':'#6495ed', color:hover?'#46566d': '#ffffff'}" @click="NextCallback(index, nextCallback)"  @mouseover="hover = true" @mouseleave="hover = false" />
-            </div>
-        </template>
-    </StepperPanel>
+   
 </Stepper>
 </div>
 </template>
@@ -132,7 +93,7 @@ export default {
     return {
       active: 0,
       canSubmit: false,
-      stepLength: 5,
+      stepLength: 3,
       dataJson:  [],
       taskInfo: [],
       tags: [],
@@ -162,8 +123,6 @@ export default {
     this.getDatasetList();
     this.getModelList();
     this.getStandardList();
-    // this.getTagList();
-    // this.getCategoryList();
   },
   create() {
     
@@ -181,30 +140,15 @@ export default {
   methods: {
     updateActive(index) {
         this.active = index;
-        console.log("active", this.active);
         this.canSubmit = this.checkCanSubmit();
     },
     NextCallback(index, nextCallback) {
         this.active = index +1;
-        console.log("active", this.active);
         this.canSubmit = this.checkCanSubmit();
-        if(this.canSubmit) {
-            const model_list = this.selectedModel? this.changeObject2List(this.selectedModel) : [];
-            // 把多选的object转换成list
-            if(this.selectedCategory) {
-                // 把多选的object转换成list
-                const category_list = this.changeObject2List(this.selectedCategory);
-                console.log("select category", category_list)
-                this.getTagList(this.selectedDataset, model_list, category_list);
-            } else {
-                this.getTagList(this.selectedDataset, model_list);
-            }
-        }
         nextCallback();
     },
     PrevCallback(index, prevCallback) {
         this.active = index - 1;
-        console.log("active", this.active);
         prevCallback();
     },
     async submitData() {
@@ -216,23 +160,30 @@ export default {
         localStorage.setItem("dataset",dataset_.name);
         localStorage.setItem("datasetID", this.selectedDataset.toString())
         localStorage.setItem("modelIDs", JSON.stringify(this.changeObject2List(this.selectedModel)))
-        if(this.selectedTag) {
-            localStorage.setItem("tagIDs", JSON.stringify(this.changeObject2List(this.selectedTag)))
+        // get category and tag
+        try {
+            const category = await api.getCategoryList(this.selectedDataset,this.changeObject2List(this.selectedModel))
+            this.$store.dispatch("updateCategoryList", category.data);
+        }catch (error) {
+            console.error('Error getting category list:', error)
         }
-        if(this.selectedCategory){
-            localStorage.setItem("categoryIDs", JSON.stringify(this.changeObject2List(this.selectedCategory)))
+        try {
+            const tag = await api.getTagList(this.selectedDataset,this.changeObject2List(this.selectedModel))
+            this.$store.dispatch("updateTagList", tag.data);
+        }catch (error) {
+            console.error('Error getting tag list:', error)
         }
-
+        
         try {
             this.$store.dispatch('updateIsLoading', true);
             this.$store.dispatch("updateCurrentPage",1)
-            const response = await api.getFilterList(parseInt(localStorage.getItem("datasetID")), JSON.parse(localStorage.getItem("modelIDs")), JSON.parse(localStorage.getItem("tagIDs")),  JSON.parse(localStorage.getItem("categoryIDs")));
+            const response = await api.getFilterList(parseInt(localStorage.getItem("datasetID"),10), JSON.parse(localStorage.getItem("modelIDs")));
             console.log("get li list and first page",response.data);
             this.$store.dispatch("updatePageCount",response.data["page_count"]);
             this.$store.dispatch("updatePageInfo",response.data["page_info"]);
             this.$store.dispatch("updateSelectSubmitted", true);
             this.$store.dispatch("updateAlreadySubmit", true);
-            this.$store.dispatch('updateIsLoading', false); 
+            this.$store.dispatch('updateIsLoading', false);
         }
         catch (error) {
             console.error('Error getting id list and first page error:', error)
@@ -264,10 +215,8 @@ export default {
             this.canSubmit = this.checkCanSubmit();
         } else {
             this.getModelList(this.selectedDataset);
-            this.getCategoryList(this.selectedDataset);
             this.canSubmit = this.checkCanSubmit();
         }
-        console.log(this.selectedDataset)
     },
     onModelChange() {
         this.canSubmit = this.checkCanSubmit();
@@ -275,24 +224,9 @@ export default {
             this.tags = null;
             this.categories = null;
         }
-        console.log("multi select",this.selectedModel);
-    },
-    onTagChange() {
-        
-        this.canSubmit = this.checkCanSubmit();
-        console.log(this.selectedTag);
-    },
-    onCategoryChange() {
-        this.canSubmit = this.checkCanSubmit();
-        console.log(this.selectedCategory);
-        if(!this.selectedCategory) {
-            this.tags = null;
-        }
     },
     onStandardChange() {
-        console.log(this.selectedStandard); // 存的是standard的id
         this.canSubmit = this.checkCanSubmit();
-        console.log("can submit?", this.canSubmit)
         //默认3档和5档，name值只有3和5
         const item = this.standards.find(item => item.id == this.selectedStandard);
         const name = item? item.name: undefined;
@@ -301,7 +235,6 @@ export default {
         } else if(String(name) == "5") {
             this.$store.dispatch("updateRatingStandard",5);
         }
-        console.log("standard", name);
         
     },
 
@@ -323,7 +256,6 @@ export default {
         data.forEach((da,index) => {
             this.questions.push({"index":index,"question":da.question});
         })
-        console.log("questions" , this.questions)
     },
     initTagAndCategory() {
         const tagSet = new Set();
@@ -335,7 +267,6 @@ export default {
         });
         this.categories = Array.from(categorySet);
         this.tags = Array.from(tagSet);
-        console.log("tags and cate", this.tags, this.categories);
         this.filteredTag = this.tags;
     },
     filterQuestionID() {
@@ -343,7 +274,6 @@ export default {
             return (!this.selectedCategory  || this.selectedCategory.length === 0 || this.selectedCategory.includes(info.category)) && (!this.selectedTag || this.selectedTag.length === 0 || info.tag.some(tt => this.selectedTag.includes(tt)));
         })
         // .map(info => {return info.question_id});
-        console.log("filter id list",id_list);
         this.getFilterData(id_list);
     },
     filterTags() {
@@ -353,8 +283,6 @@ export default {
         let filtered = this.taskInfo.filter(info => this.selectedCategory.includes(info.category))
             .flatMap(info => info.tag);
         this.filteredTag = Array.from(new Set(filtered));
-        console.log("original tags",this.tags);
-        console.log("filter tag",this.filteredTag);
     },
     getFilterData(id_list) {
         // get filter data by question id
@@ -366,7 +294,6 @@ export default {
             }
             return false;
         });
-        console.log("filtered data",this.filteredData);
         this.$store.dispatch("updateFilterData",this.filteredData);
     },
 
