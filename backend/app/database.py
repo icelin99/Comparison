@@ -5,6 +5,7 @@ from tortoise.models import Model
 from tortoise.query_utils import Prefetch
 from tortoise.exceptions import DoesNotExist
 from tortoise.functions import Count
+from .request import ScoreFileRequest
 import os
 import json
 import re
@@ -52,7 +53,9 @@ class Result(Model):
     model = fields.ForeignKeyField('models.ModelName', related_name='results')
     data_info = fields.ForeignKeyField('models.DataInfo', related_name='results', to_field='id')
     answer = fields.TextField(null=True)
-    score = fields.FloatField(null=True, default=None)
+    score_3 = fields.FloatField(null=True, default=None)
+    score_5 = fields.FloatField(null=True, default=None)
+    score_else = fields.FloatField(null=True, default=None)
     standard = fields.FloatField(null=True)
 
 # class DatasetInfo(BaseModel):
@@ -92,24 +95,14 @@ async def model_run():
     await process_results_score('/mnt/afs/user/chenzixuan/eval_tool_info/results_score')
 
 
-async def add_datasets_from_directory(directory_path):
-    """
-    此函数从results目录中建dataset表和ModelName表
-    """
-    for folder_name in os.listdir(directory_path):
-        folder_path = os.path.join(directory_path,folder_name)
+async def add_datasets_from_directory(dir):
+    for folder_name in os.listdir(dir):
+        folder_path = os.path.join(dir,folder_name)
         if os.path.isdir(folder_path):
-            if folder_name.endswith('_bk'):
-                continue
-            # 检查这个 dataset 是否已存在
             dataset, created = await Dataset.get_or_create(name=folder_name)
             if created:
                 print(f"Added dataset: {folder_name}")
-            # 处理该数据集下的所有模型文件
-            for file_name in os.listdir(folder_path):
-                if file_name.endswith('.json') or file_name.endswith('.jsonl'):
-                    model_name, _ = os.path.splitext(file_name)
-                    model_entry,_ = await ModelName.get_or_create(name=model_name, dataset=dataset)
+
 
 async def add_standards_from_json(directory_path):
     for folder_name in os.listdir(directory_path):
@@ -137,97 +130,168 @@ async def process_josn_file(directory_path):
     for folder_name in os.listdir(tag_directory):
         folder_path = os.path.join(tag_directory, folder_name)
         if os.path.exists(folder_path):
-            category_seen = set()
-            tags_seen = set()
-            json_file_path = os.path.join(folder_path,"json_files","dataset_info.json")
-            dataset, _ = await Dataset.get_or_create(name=folder_name)  # 保证数据集存在
-            if os.path.exists(json_file_path):
-                with open(json_file_path, 'r') as json_file:
-                    data_list = json.load(json_file)
-                    for data in data_list:
-                        filename = data["filename"]
-                        if filename.startswith('images/'):
-                            filename = filename[7:]  # 去掉前缀 'images/'
-                        question = data["question"]
-                        image_path = os.path.join(folder_path,"images",filename)
-                        normalized_question = remove_end_point(question)
-                        # create DataInfo item
-                        try:
-                            data_info, _ = await DataInfo.get_or_create(image_path=filename, dataset=dataset, question=normalized_question, image_abs_path=image_path)
-                        except DoesNotExist as e:
-                            raise e
-                        # data_info, _ = await DataInfo.get_or_create(image_path=filename, dataset=dataset, question=question)
-                        if data["category"]:
-                            category_name = data["category"]
-                            if category_name and category_name not in category_seen:
-                                category_seen.add(category_name)
-                                await Category.get_or_create(name=category_name)
-                            # add category id into DataInfo
-                            if category_name:
-                                category, _ = await Category.get_or_create(name=category_name)
-                                await data_info.categories.add(category)
+            try:
+                dataset = await Dataset.get(name=folder_name)  # 保证数据集存在
+                json_file_path = os.path.join(folder_path,"json_files","dataset_info.json")
+                if os.path.exists(json_file_path):
+                    with open(json_file_path, 'r') as json_file:
+                        data_list = json.load(json_file)
+                        for data in data_list:
+                            await add_new_category_tag_datainfo(folder_path,data,dataset)
+                        print(f"dataset, {folder_name},{len(data_list)}")
+            except DoesNotExist:
+                print(f"dataset {folder_name} not fount when process json file")
+            
 
-                        if data["tag"]:
-                            tags = data["tag"]
-                            if tags and tags != "None":
-                                tag_list = tags if isinstance(tags, list) else [tags]
-                                for tag_name in tag_list:
-                                    if tag_name not in tags_seen:
-                                        tags_seen.add(tag_name)
-                                        await Tag.get_or_create(name=tag_name)
-                                # add tag id into DataInfo
-                                for tag_name in tag_list:
-                                    if tag_name:
-                                        tag, _ = await Tag.get_or_create(name=tag_name)
-                                        await data_info.tags.add(tag)  # 添加标签关联
-                
+async def add_new_category_tag_datainfo(folder_path,data, dataset):
+    filename = data["filename"]
+    if filename.startswith('images/'):
+        filename = filename[7:]  # 去掉前缀 'images/'
+    question = data["question"]
+    image_path = os.path.join(folder_path,"images",filename)
+    normalized_question = remove_end_point(question)
+    # create DataInfo item
+    try:
+        data_info, _ = await DataInfo.get_or_create(image_path=filename, dataset=dataset, question=normalized_question, image_abs_path=image_path)
+        if "category" in data and data["category"]:
+            category_name = data["category"]
+            category, _ = await Category.get_or_create(name=category_name)
+            # add category id into DataInfo
+            await data_info.categories.add(category)
+
+        if "tag" in data and data["tag"]:
+                        tags = data["tag"]
+                        if tags and tags != "None":
+                            tag_list = tags if isinstance(tags, list) else [tags]
+                            for tag_name in tag_list:
+                                tag, _ = await Tag.get_or_create(name=tag_name)
+                                await data_info.tags.add(tag)
+    except DoesNotExist as e:
+        raise e
+    
+
+
+async def update_datainfo_category_tag(folder_path,dataset):
+    json_file_path = os.path.join(folder_path,"json_files","dataset_info.json")
+    if os.path.exists(json_file_path):
+        # 获取dataset下的所有DataInfo
+        data_infos = await DataInfo.filter(dataset=dataset).order_by('id')
+        print("已找到的datainfo个数",len(data_infos))
+        with open(json_file_path, 'r') as json_file:
+            data_list = json.load(json_file)
+            for index, data in enumerate(data_list):
+
+                if index < len(data_infos):
+                    data_info = data_infos[index]
+                    await update_datainfo(folder_path, data_info, data,dataset)
+                else:
+                    # 如果data_list比现有的DataInfo更多，则创建新的DataInfo
+                    await add_new_category_tag_datainfo(folder_path,data,dataset)
+
+async def update_datainfo(folder_path, data_info, data,dataset):
+    filename = data["filename"]
+    if filename.startswith('images/'):
+        filename = filename[7:]  # 去掉前缀 'images/'
+    question = data["question"]
+    image_path = os.path.join(folder_path,"images",filename)
+    normalized_question = remove_end_point(question)
+
+    update_needed = False
+    if data_info.image_path != filename:
+        data_info.image_path = filename
+        update_needed = True
+    if data_info.image_abs_path != image_path:
+        data_info.image_abs_path = image_path
+        update_needed = True
+    if data_info.question != normalized_question:
+        data_info.question = normalized_question
+        update_needed = True
+    
+    
+    # 更新新的 categories 和 tags
+    if "category" in data and data["category"]:
+        # 删除旧的 categories 和 tags
+        await data_info.categories.clear()
+        category_name = data["category"]
+        category, _ = await Category.get_or_create(name=category_name)
+        # add category id into DataInfo
+        await data_info.categories.add(category)
+
+    if "tag" in data and data["tag"]:
+        tags = data["tag"]
+        if tags and tags != "None":
+            await data_info.tags.clear()
+            tag_list = tags if isinstance(tags, list) else [tags]
+            for tag_name in tag_list:
+                tag, _ = await Tag.get_or_create(name=tag_name)
+                await data_info.tags.add(tag)
+
+    if update_needed:
+        await data_info.save()
+        print(f"DataInfo {data_info.id} updated.")
+   
+
 async def process_results(directory_path):
     """
     此函数从results目录收集result来建表 利用DataInfo的数据进行关联
     """
     for folder_name in os.listdir(directory_path):
+        # 这里的folder name是dataset
         folder_path = os.path.join(directory_path, folder_name)
         if os.path.exists(folder_path):
-            dataset, _ = await Dataset.get_or_create(name=folder_name)  # 保证数据集存在
-            for result_name in os.listdir(folder_path):
-                if result_name.endswith('.json') or result_name.endswith('.jsonl'):
+            try:
+                dataset = await Dataset.get(name=folder_name)  # 保证数据集存在
+                for result_name in os.listdir(folder_path):
                     result_path = os.path.join(folder_path,result_name)
-                    model_name, _ = os.path.splitext(result_name)
-                    try:
-                        model = await ModelName.get(name=model_name, dataset=dataset)
-                        with open(result_path, 'r') as json_file:
-                            # 这里json和jsonl格式可能是混乱的
-                            try:
-                                data_list = json.load(json_file)
-                            except json.JSONDecodeError:
-                                # 如果无法解析为 JSON，则将其视为 JSONL 文件
-                                json_file.seek(0)
-                                data_list = [json.loads(line) for line in json_file]
-                            # data_list = json.load(json_file)
-                            for data in data_list:
-                                filename = data["filename"]
-                                print(folder_name,model_name,filename)
-                                question = data.get("question") or data.get("ask_question")
-                                normalized_question = remove_end_point(question)
-                                answer = data["result"]
-                                # 首先根据 image_path 进行过滤
-                                candidates = await DataInfo.filter(image_path=filename)
-                                if len(candidates) == 1:
-                                    # 如果只有一个候选项，直接返回这个候选项
-                                    data_info =  candidates[0]
-                                else:
-                                    # 如果image path不唯一，则再根据question来匹配
-                                    for candidate in candidates:
-                                        if candidate.question == normalized_question:
-                                            data_info = candidate
-                                    
-                                
-                                result,_ = await Result.get_or_create(dataset=dataset, model=model, data_info=data_info,answer=answer)
-                    
-                    except DoesNotExist:
-                            pass
+                    await add_result(dataset,result_name,result_path)
+            except DoesNotExist:
+                print(f"Dataset {folder_name} does not exist in results_score")
+                pass
+           
 
-                   
+async def add_result(dataset, result_name, result_path):
+    # folder_path, folder_name
+    if result_name.endswith('.json') or result_name.endswith('.jsonl'):
+        model_name, _ = os.path.splitext(result_name)
+        try:
+            model,_ = await ModelName.get_or_create(name=model_name, dataset=dataset)
+            print("find model")
+            with open(result_path, 'r') as json_file:
+                # 这里json和jsonl格式可能是混乱的
+                try:
+                    data_list = json.load(json_file)
+                except json.JSONDecodeError:
+                    # 如果无法解析为 JSON，则将其视为 JSONL 文件
+                    json_file.seek(0)
+                    data_list = [json.loads(line) for line in json_file]
+                # data_list = json.load(json_file)
+                for data in data_list:
+                    filename = data["filename"]
+                    if filename.startswith('images/'):
+                        filename = filename[7:]  # 去掉前缀 'images/'
+                    question = data.get("question") or data.get("ask_question")
+                    normalized_question = remove_end_point(question)
+                    answer = data["result"]
+                    print(filename,normalized_question)
+                    # 首先根据 image_path 进行过滤
+                    candidates = await DataInfo.filter(image_path=filename)
+                    data_info = None
+                    if len(candidates) == 1:
+                        # 如果只有一个候选项，直接返回这个候选项
+                        data_info =  candidates[0]
+                    else:
+                        # 如果image path不唯一，则再根据question来匹配
+                        for candidate in candidates:
+                            if candidate.question == normalized_question:
+                                data_info = candidate
+                                break
+                    assert data_info, "Error, data_info not found"
+                    print(f"add result, model {model_name}, data_info {data_info.id}")
+                    result,_ = await Result.get_or_create(dataset=dataset, model=model, data_info=data_info,answer=answer)
+        
+        except DoesNotExist:
+                pass
+
 
 async def process_results_score(directory_path):
     """
@@ -239,96 +303,77 @@ async def process_results_score(directory_path):
             try:
                 dataset = await Dataset.get(name=folder_name) 
                 for model_name in os.listdir(folder_path):
-                    if model_name.endswith('.json') or model_name.endswith('.jsonl'):
-                        model_path = os.path.join(folder_path, model_name)
-                        # 去掉从第一个横杠开始的部分及文件后缀
-                        # model_name = re.sub(r'-.*$', '', model_name)
-                        model_name = model_name.replace('-xiaomi_standard','').replace('.json','').replace('.jsonl','')
-
-                        try:
-                            model = await ModelName.get(name=model_name,dataset=dataset)
-                            with open(model_path, 'r') as json_file:
-                                data_list = json.load(json_file)
-                                all_scores_valid_3 = all(data["score"] in {0, 0.5, 1} for data in data_list)
-                                all_score_valid_5 = all(data["score"] in {0,1,2,3,4} for data in data_list)
-                                if all_scores_valid_3:
-                                    standard = 3
-                                elif all_score_valid_5:
-                                    standard = 5
-                                else:
-                                    standard=None
-                                for data in data_list:
-                                    filename = data["filename"]
-                                    # if '/' in filename:
-                                    #     filename = filename.split('/')[-1]
-                                    question = data.get("question") or data.get("ask_question")
-                                    normalized_question = remove_end_point(question)
-                                    score = data.get("score")
-                                    print(f"score : {score}, {folder_name}, {model_name}")
-                                    if score is None or isinstance(score, float) and math.isnan(score):
-                                        continue
-                                    # 首先根据 image_path 进行过滤
-                                    candidates = await DataInfo.filter(image_path=filename)
-                                    if len(candidates) == 1:
-                                        data_info =  candidates[0]
-                                    else:
-                                        # 如果image path不唯一，则再根据question来匹配
-                                        for candidate in candidates:
-                                            if candidate.question == normalized_question:
-                                                data_info = candidate
-                                    try:
-                                        result_count = await Result.filter(dataset=dataset,model=model,data_info = data_info).count()
-                                        result = await Result.get(dataset=dataset,model=model,data_info = data_info)
-                                        result.score = score
-                                        result.standard = standard
-                                        await result.save()
-                                        
-                                    except DoesNotExist:
-                                        # 如果 Result 不存在，处理异常情况
-                                        print(f"Result with dataset={folder_name}, model={model_name}, data_info={data_info.image_path} does not exist")
-                                        pass
-                            
-                        except DoesNotExist:
-                            pass
-                
+                    model_path = os.path.join(folder_path, model_name)
+                    await add_score(dataset,model_name,model_path)
             except DoesNotExist:
                 print(f"Dataset {folder_name} does not exist in results_score")
                 pass
 
-# async def add_file(datasetID,):
 
+async def add_score(dataset, model_name, model_path):
+    if model_name.endswith('.json') or model_name.endswith('.jsonl'):
+        standard = None
+        if 'xiaomi_standard' in model_name:
+            standard = 3
+        elif '_intern_standard' in model_name:
+            standard = 5
+        # 去掉从第一个横杠开始的部分及文件后缀
+        # model_name = re.sub(r'-.*$', '', model_name)
+        model_name = model_name.replace('-xiaomi_standard','').replace('-intern_standard','').replace('.json','').replace('.jsonl','')
 
-def get_image_as_base64(file_path):
-    with open(file_path, 'rb') as file:
-        encoded_iamge = base64.b64encode(file.read()).decode('utf-8')
-    return encoded_iamge                
-
-async def get_category_by_dataset(id: int):
-    data_infos = await DataInfo.filter(dataset_id = id).prefetch_related('categories')
-    category_set = set()
-    for data_info in data_infos:
-        category_set.update(data_info.categories)
-    category_list = [{"id": category.id, "name": category.name} for category in category_set]
-
-    return category_list
-
-async def get_tags_by_dataset_and_categories(datasetID: int = None, categoryIDs: list = None):
-    query = DataInfo.all().prefetch_related('tags')
-    if datasetID is not None:
-        query = query.filter(dataset_id=str(datasetID))
-        count = await query.count()
-    if categoryIDs:
-        query = query.filter(categories__id__in=categoryIDs)
-    data_infos = await query
-    
-    tags_set = set()
-    for data_info in data_infos:
-        tags = await data_info.tags.all()
-        for tag in tags:
-            tags_set.add(tag)
-    
-    tags_list = [{"id": tag.id, "name": tag.name} for tag in tags_set]
-    return tags_list
+        try:
+            model = await ModelName.get(name=model_name,dataset=dataset)
+            with open(model_path, 'r') as json_file:
+                data_list = json.load(json_file)
+                
+                for data in data_list:
+                    filename = data["filename"]
+                    # if '/' in filename:
+                    #     filename = filename.split('/')[-1]
+                    question = data.get("question") or data.get("ask_question")
+                    normalized_question = remove_end_point(question)
+                    score = data.get("score")
+                    print(f"score : {score}, {model_name}")
+                    if score is None or isinstance(score, float) and math.isnan(score):
+                        continue
+                    # 首先根据 image_path 进行过滤
+                    candidates = await DataInfo.filter(image_path=filename)
+                    data_info = None
+                    if len(candidates) == 1:
+                        data_info =  candidates[0]
+                    else:
+                        # 如果image path不唯一，则再根据question来匹配
+                        for candidate in candidates:
+                            if candidate.question == normalized_question:
+                                data_info = candidate
+                    assert data_info, f"Error, data_info not found, {filename}, {question}"
+                    try:
+                        result_count = await Result.filter(dataset=dataset,model=model,data_info = data_info).count()
+                        result = await Result.get(dataset=dataset,model=model,data_info = data_info)
+                        try:
+                            score = float(score)
+                        except ValueError:
+                            # Handle the case where conversion fails if necessary
+                            print(f"Invalid score value: {score}")
+                            score = 0.0
+                        if(standard == 3):
+                            result.score_3 = score
+                        elif standard==5:
+                            result.score_5 = score
+                        else:
+                            result.score_else = score
+                        result.standard = standard
+                        await result.save()
+                        
+                    except DoesNotExist:
+                        # 如果 Result 不存在，处理异常情况
+                        print(f"Result with model={model_name}, data_info={data_info.image_path} does not exist")
+                        pass
+            
+        except DoesNotExist:
+            print(f"model={model_name} does not exist")
+            pass
+  
 
 def remove_end_point(msg: str):
     import unicodedata
@@ -338,122 +383,3 @@ def remove_end_point(msg: str):
     while idx>=0 and unicodedata.category(msg[idx]) in {"Pd", "Ps", "Pe", "Pi", "Pf", "Po"}:
         idx -= 1
     return msg[: idx + 1]
-
-async def get_filter_results(datasetID, modelIDs: list = None, TagIDs: list = None, categoryIDs: list = None, page: int = 1):
-    pageInfo = []
-    first_data_info = None
-    first_model_id = modelIDs[0]
-    result_query = Result.filter(dataset_id=datasetID, model_id=first_model_id)
-    if TagIDs:
-        result_query = result_query.filter(data_info__tags__id__in=TagIDs)
-    if categoryIDs:
-        result_query = result_query.filter(data_info__categories__id__in=categoryIDs)
-    total_count = await result_query.count()
-    print("total: ", total_count)
-    page_size = 1  # 默认一页显示一条数据
-    offset = (page - 1) * page_size
-    print("offset", offset)
-    result_query = result_query.offset(offset).limit(page_size)
-    first_result = await result_query.distinct()
-    if first_result:
-        first_data_info = first_result[0].data_info_id
-
-    for modelID in modelIDs:
-        result_i = []
-        result_query = Result.filter(dataset_id=datasetID,model_id=modelID, data_info_id = first_data_info)
-
-        results = await result_query.distinct()
-
-        model_names = await ModelName.filter(id=modelID).values_list('id', 'name')
-        model_id_to_name = {model_id: name for model_id, name in model_names}
-        for result in results:
-            data_info = await result.data_info
-            image_abs_path = data_info.image_abs_path
-            mime_type = get_mime_type(image_abs_path)
-            encoded_image = get_image_as_base64(image_abs_path)
-            page_info = {
-                "image_path": data_info.image_path,
-                "question": data_info.question,
-                "tags": [tag.name for tag in await data_info.tags],
-                "categories": [category.name for category in await data_info.categories],
-                "image_code": f"data:{mime_type};base64,{encoded_image}",
-                "data_info_id":first_data_info,
-                "modelList": [
-                    {
-                        "model_id": result.model_id,
-                        "model_name": model_id_to_name.get(result.model_id, "Unknown Model"),
-                        "answer": result.answer,
-                        "score": result.score,
-                        "standard": result.standard
-                    }
-                ]
-            }
-            print("score: ",result.score)
-            result_i.append(page_info)
-        if result_i == []:
-            pageInfo = []
-        else:
-            pageInfo.append(result_i[0])
-
-    return {
-        "total_page": total_count,
-        "page_info": pageInfo  # 前端默认只显示一页 故只传一条数据
-    }
-
-
-
-def get_mime_type(file_path):
-    # 检查文件扩展名并确定 MIME 类型
-    ext = os.path.splitext(file_path)[1].lower()
-    mime_types = {
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.png': 'image/png',
-        '.gif': 'image/gif'
-    }
-    mime_type = mime_types[ext]
-    return mime_type
-
-async def save_page_by_page(page, data_info_id,datasetID, modelID, standard, score: float = None, tagIDs: list = None, categoryIDs: list = None):
-    result_query = Result.filter(dataset_id=datasetID,model_id=modelID,data_info_id=data_info_id)
-
-    results = await result_query.distinct()
-    for result in results:
-        print("=======",1)
-        result.score = score
-        result.standard = standard
-        await result.save()
-        verify_result = await Result.get(id=result.id)
-        print("------",verify_result.score)
-        if not (verify_result.score == score and verify_result.standard == standard):
-            raise Exception("Verification failed, transaction will rollback")
-        return "save successfully!"
-    return "save failed"
-
-async def save_page_by_page_(page, datasetID, modelID, score, standard, tagIDs: list = None, categoryIDs: list = None):
-    print("save:",datasetID,modelID,score,standard)
-    datainfo_query = DataInfo.filter(dataset_id = datasetID)
-    # Optional filters for tags and categories if lists are not empty
-    if tagIDs:
-        datainfo_query = datainfo_query.filter(tags__id__in=TagIDs)
-    if categoryIDs:
-        datainfo_query = datainfo_query.filter(categories__id__in=categoryIDs)
-    total_count = await datainfo_query.count()
-    print("total: ",total_count)
-    page_size = 1 # 默认一页显示一条数据
-    offset = (page - 1) * page_size
-    print("offset", offset)
-    datainfo_query = datainfo_query.offset(offset).limit(page_size)
-
-    data_infos = await datainfo_query.prefetch_related('results').distinct()
-    results = await Result.filter(data_info=data_infos[0].id, model_id=modelID).all()
-
-    for result in results:
-        print("===",1)
-        result.score = score
-        result.standard = standard
-        await result.save()
-        verify_result = await Result.get(id=result.id)
-        if not (verify_result.score == score and verify_result.standard == standard):
-            raise Exception("Verification failed, transaction will rollback")
-        return "save successfully!"
