@@ -1,9 +1,10 @@
 <template>
 <div>
   <LoadingComponent />
-  <EvaHeader />
-  <div :style="{height:'20%', width:'98%', top: '45px',position:'fixed'}"><DataSetProgress /></div>
-  <div :style="{height:'80%', width:'98%'}"><ImageModel /></div>
+  <EvaHeader class="header" />
+  <div class="content">
+    <router-view />
+  </div>
 </div>
 </template>
 
@@ -38,9 +39,9 @@ export default {
   text-align: center;
   color: #2c3e50;
   margin-top: 10px;
-  margin-right:10px;
   padding: 0 20px 10px 0;
   overflow: scroll;
 }
+
 
 </style>

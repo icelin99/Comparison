@@ -6,13 +6,14 @@ export default createStore({
         filterData: [],
         currentPage: 1,
         ratingStandard: parseInt(localStorage.getItem("standard"),10),
-        pageInfo: localStorage.getItem("pageInfo"),
+        pageInfo: [],
         pageCount: parseInt(localStorage.getItem("pageCount"),10),
         alreadySubmit: false,
         isLoading: true,
         dataset: null,
         categoryList: [],
         tagList: [],
+        modelList: []
     },
     mutations: {
         set_selectSubmitted(state, data) {
@@ -40,6 +41,7 @@ export default createStore({
         },
         set_ratingStandard(state, rating) {
             state.ratingStandard = rating;
+            console.log("store standard",rating);
             localStorage.setItem("standard",rating.toString());
         },
         set_pageInfo(state, info) {
@@ -65,6 +67,9 @@ export default createStore({
         },
         set_tag(state, list) {
             state.tagList = list;
+        },
+        set_modelList(state, list) {
+            state.modelList = list;
         }
     },
     actions: {
@@ -100,6 +105,9 @@ export default createStore({
         },
         updateTagList({commit}, list) {
             commit('set_tag', list);
+        },
+        updateModelList({commit}, list) {
+            commit('set_modelList',list);
         }
     },
     getters: {
@@ -115,5 +123,6 @@ export default createStore({
         dataset: state => state.dataset,
         categoryList: state => state.categoryList,
         tagList: state => state.tagList,
+        modelList: state => state.modelList,
     }
 })

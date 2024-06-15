@@ -9,7 +9,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['http://localhost:8082', 'http://101.230.144.192:10069/mllm_evaluation'],
+    allow_origins=['http://localhost:8082', 'http://101.230.144.192:10069/mllm_evaluation','http://localhost:8083'],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -32,7 +32,7 @@ async def shutdown_event():
 # 假设数据库已经建好
 register_tortoise(
     app,
-    db_url='sqlite://db-527.sqlite3',
+    db_url='sqlite://db-607.sqlite3',
     modules={'models': ['database_dev']}, 
     generate_schemas=False, 
     add_exception_handlers=True

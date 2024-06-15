@@ -16,7 +16,7 @@ app.add_middleware(
 )
 
 
-app.include_router(api_router, prefix="/api")
+app.include_router(api_router)
 
 
 # 若要修改数据库，使用下面的函数
@@ -32,7 +32,7 @@ async def shutdown_event():
 # 假设数据库已经建好
 register_tortoise(
     app,
-    db_url='sqlite://db-527.sqlite3',
+    db_url='sqlite://db-607.sqlite3',
     modules={'models': ['app.database']}, 
     generate_schemas=False, 
     add_exception_handlers=True

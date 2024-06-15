@@ -1,13 +1,20 @@
-import { createRouter, createWebHistory } from 'vue-router';
-import HomePage from '../App.vue';
+import { createRouter, createWebHashHistory } from 'vue-router';
+// import HomePage from '../App.vue';
 import ImageModel from '../components/ImageModel.vue';
 import MarkdownEditor from '../components/MardownEditor.vue'
+import AccuracyTable from "../components/AccuracyTable.vue"
+import BasePage from "../components/BasePage.vue"
 
 const routes = [
+  // {
+  //   path: '/',
+  //   name: 'Home',
+  //   component: HomePage
+  // },
   {
     path: '/',
     name: 'Home',
-    component: HomePage
+    component: BasePage
   },
   {
     path: '/image-model',
@@ -18,11 +25,16 @@ const routes = [
     path: '/markdown',
     name: 'MarkdownEditor',
     component: MarkdownEditor
+  },
+  {
+    path: '/accuracy',
+    name: "AccuracyTable",
+    component: AccuracyTable
   }
 ];
 
 const router = createRouter({
-  history: createWebHistory(process.env.BASE_URL),
+  history: createWebHashHistory(),
   routes
 });
 

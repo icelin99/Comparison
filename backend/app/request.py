@@ -45,3 +45,18 @@ class ScoreFileRequest(BaseModel):
     category: Optional[str] = None
     tag: Optional[List[str]] = None
     result: Optional[str] = None
+
+class EditAnswerRequest(BaseModel):
+    datainfoID: int
+    ref_answer: str
+
+class DeleteDataset(BaseModel):
+    dataset_name: str
+
+class DeleteResult(BaseModel):
+    path: str
+
+class AccuracyRequest(BaseModel):
+    datasetID: int
+    modelIDs: List[int]
+    standard: int

@@ -14,6 +14,11 @@ import '@kangc/v-md-editor/lib/style/base-editor.css';
 import githubTheme from '@kangc/v-md-editor/lib/theme/github.js';
 import '@kangc/v-md-editor/lib/theme/style/github.css';
 import hljs from 'highlight.js';
+import 'katex/dist/katex.min.css';
+
+import Antd from  "ant-design-vue";
+import 'ant-design-vue/dist/reset.css';
+
 
 VMdEditor.use(githubTheme, {
   Hljs: hljs,
@@ -28,7 +33,7 @@ app.use(store);
 app.use(router);
 
 app.use(VMdEditor);
-
+app.use(Antd);
 
 
 app.mount('#app');

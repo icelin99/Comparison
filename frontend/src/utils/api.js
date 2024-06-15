@@ -106,5 +106,30 @@ export default {
     },
     getFileURL(filename) {
         return `${API_URL}download/${filename}/`
+    },
+    editAnswer(data_info_id, answer) {
+        return axios.post(`${API_URL}edit-answer/`,{
+            datainfoID: data_info_id,
+            ref_answer: answer
+        })
+    },
+    deleteDataset(dataset_name) {
+        return axios.post(`${API_URL}delete-dataset/`, {
+                dataset_name: dataset_name
+            
+        })
+    },
+    deleteResult(path) {
+        return axios.post(`${API_URL}delete-result/`, {
+            path: path
+        })
+    },
+    getAccuracy(datasetID, modelIDs,standard) {
+        return axios.post(`${API_URL}accuracy/`, {
+            datasetID: datasetID,
+            modelIDs: modelIDs,
+            standard: standard
+            
+        })
     }
 }

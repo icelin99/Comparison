@@ -45,15 +45,21 @@
                         </div>
                     </div>
                 </div>
-                <div class="text-container"><div class="text-text">图片地址</div><div class="image-path" @dblclick="openModal('text', pageInfo[0].image_path)" >{{pageInfo[0].image_path}}</div></div>
-                <div class="text-container"><div class="text-text">问题</div><div class="text-border" @dblclick="openModal('text', pageInfo[0].question)"> {{pageInfo[0].question}}</div></div>
+                <div class="text-container"><div class="text-text">图片地址</div><div class="image-path" @dblclick="openModal('text', pageInfo.image_path)" >{{pageInfo.image_path}}</div></div>
+                <div class="text-container"><div class="text-text">问题</div><div class="text-border" @dblclick="openModal('text', pageInfo.question)"> {{pageInfo.question}}</div></div>
+                <div class="text-container"><div class="text-text">参考答案</div>
+                <div v-if="!isAnswerEdit" class="text-border" @dblclick="openModal('text', pageInfo[0].question)"> {{ref_answer}}</div>
+                <button v-if="!isAnswerEdit" class="ref_answer_span" @click="handleAnswer">✏️</button>
+                <InputText v-if="isAnswerEdit" class="text-border edit" v-model="editedAnswer" />
+                <button v-if="isAnswerEdit" class="ref_answer_span" @click="handleAnswer">✔️</button>
+                </div>
             </div>
         </div>
         <div :style="{width: '60%', height: '100%'}">
             <div style="display: flex; flex-direction: row; width: '100%'; height: '100%'">
-                <DataTable :value="modelList" stripedRows tableStyle="min-width: 50rem; overflow: scroll; white-space: normal; word-wrap: break-word;" >
-                    <Column field="model_name" header="Model" style="max-width: 10rem"></Column>
-                    <Column field="answer" header="Answer" style="min-width: 25rem; max-width:35rem">
+                <DataTable :value="pageInfo.modelList" stripedRows tableStyle="min-width: 50rem; overflow: scroll; white-space: normal; word-wrap: break-word;" >
+                    <Column field="model_name" header="Model" style="max-width: 12rem; word-wrap: break-word;"></Column>
+                    <Column field="answer" header="Answer" >
                         <template #body="{ data }">
                             <div v-html="renderMarkdown(data.answer)"></div>
                         </template>
@@ -72,10 +78,26 @@
                                 </template>
                             </Rating> -->
                             <div class="rating">
-                                <span v-for="i in ratingStandard" :key="i" @click="onRatingChange(i,slotProps.index)" :class="{ active: slotProps.data.score !== null && slotProps.data.score !== undefined && i == reverseScaleScore(slotProps.data.score) }">{{ scaleScore(i) }}</span>
+                                <template v-if="ratingStandard <= 5">
+                                    <span v-for="i in ratingStandard" :key="i" @click="onRatingChange(i, slotProps.index)"
+                                          :class="{ active: slotProps.data.score !== null && slotProps.data.score !== undefined && i == reverseScaleScore(slotProps.data.score) }">
+                                      {{ scaleScore(i) }}
+                                    </span>
+                                  </template>
+                                  <template v-else>
+                                    <div  class="rating-line">
+                                        <div v-for="(line, index) in splitRatingStandard" :key="index">
+                                            <span v-for="i in line" :key="i" @click="onRatingChange(i, slotProps.index)"
+                                                  :class="{ active: slotProps.data.score !== null && slotProps.data.score !== undefined && i == reverseScaleScore(slotProps.data.score) }">
+                                              {{ scaleScore(i) }}
+                                            </span>
+                                          </div>
+                                    </div>
+                                  </template>
                             </div>
                         </template>
                     </Column>
+                    <Column v-if="pageInfo.modelList.some(item => item.reason)" field="reason" header="Reason" ></Column>
                 </DataTable>
                
             </div>
@@ -97,6 +119,7 @@
         </div>
         
     </div>
+    <Toast ref="toast" />
 </div>
 </template>
 
@@ -111,8 +134,20 @@ import DataTable from 'primevue/datatable'
 import Column from 'primevue/column'
 import api from '@/utils/api'
 import MarkdownIt from 'markdown-it'
+import markdownItTable from 'markdown-it-multimd-table';
+import markdownItContainer from 'markdown-it-container';
+import katex from 'katex';
 import MultiSelect from 'primevue/multiselect'
-
+import Dialog from 'primevue/dialog'
+import InputText from 'primevue/inputtext'
+import Toast from 'primevue/toast'
+// import markdownItKatex from 'markdown-it-katex'
+import 'katex/dist/katex.min.css';
+// import { renderMarkdown } from '../utils/markdownCompile.js';
+import CodeBlockRenderer from './CodeBlockRenderer.vue'
+import hljs from 'highlight.js';
+  import 'highlight.js/styles/default.css';
+  import { marked } from 'marked';
 
 
 export default {
@@ -124,16 +159,24 @@ export default {
         Rating,
         DataTable,
         Column,
-        MultiSelect
+        MultiSelect,
+        Dialog,
+        InputText,
+        Toast,
+        CodeBlockRenderer
     },
     computed: {
         ...mapGetters(["selectSubmitted","currentData", "pageCount", "currentPage","ratingStandard", "pageInfo", "categoryList", "tagList"]),
-        parsedAnswers() {
-            const result = {};
-            this.modelList.forEach(model => {
-                result[model._id] == this.markdown(model.answer);
-            })
-            return result;
+        splitRatingStandard() {
+            // Split the array into two halves
+            const rating = Array.from({ length: this.ratingStandard }, (_, index) => index + 1);
+            
+            const midpoint = Math.ceil(this.ratingStandard / 2);
+            console.log("splitratingstandard",rating,rating.slice(0, midpoint),rating.slice(midpoint))
+            return [
+                rating.slice(0, midpoint),
+                rating.slice(midpoint)
+            ];
         }
     },
     mounted() {
@@ -149,17 +192,20 @@ export default {
             }
         },
         pageInfo(newVal) {
-            console.log("pageInfo",newVal);
-            this.img_path = newVal[0].image_code;
-            this.tag = newVal[0].tag;
-            this.category = newVal[0].categories;
-            this.modelList = newVal.map(item => item.modelList[0]);
-            // this.modelList.forEach(element => {
-            //     // element.standardScore = this.reverseScaleScore(element.score);
-            //     // element.standardScore = element.score;
-            //     element.answer = "Here is a [link](http://example.com). This is **bold** text and this is _italic_."
-            // });
-            this.data_info_id = newVal[0].data_info_id;
+            console.log("pageInfo", newVal);
+        
+            this.img_path = newVal.image_code;
+            this.tag = newVal.tags;
+            this.category = newVal.categories;
+            // this.modelList = {};
+            // if(newVal && newVal.modelList && newVal.modelList.length){
+            //     const _newVal = JSON.parse(JSON.stringify(newVal))
+            //     console.log(_newVal.modelList[0] === newVal.modelList[0])
+            //     this.localModelList = _newVal.modelList;
+            // }
+            this.data_info_id = newVal.data_info_id;
+            this.ref_answer = newVal.ref_answer;
+
         },
         currentPage(newVal) {
             console.log("current page",newVal)
@@ -177,11 +223,26 @@ export default {
         }
 
     },
+    created() {
+        this.markdownItInstance = new MarkdownIt({
+            html: true, // 允许 HTML 标签
+            breaks: true, // 将 \n 转换为 <br>
+            linkify: true, // 自动将 URL 转为链接
+        })
+        .use(markdownItTable)
+        .use(markdownItContainer)
+        // .use(markdownItKatex, {
+        //     inlineRenderer: (fragment, options, displayMode) => {
+        //     console.log(fragment,options,displayMode)
+        //     return Katex.renderToString(fragment, options.displayMode)
+        //     }
+        // });
+    },
     data() {
         return {
             isShow: false,
             data: null,
-            modelList: [],
+            // modelList: [],
             scoreList: [0,0.5,1],
             selectedScore: null,
             imagePath: "/assets/scenery.jpeg",
@@ -198,7 +259,7 @@ export default {
             img_path: "",
             data_info_id: null,
             scrollInterval: null,
-            markdown: new MarkdownIt(),
+            markdownItInstance: null,
             isModalOpen: false,
             modalType: 'text', // 'text' or 'image'
             modalContent: '', // Content to display in modal
@@ -216,7 +277,10 @@ export default {
                 transform: 'scale(1)  translate(0px, 0px)',
                 cursor: 'grab'
             },
-            pageEdit: []
+            pageEdit: [],
+            editedAnswer: "",
+            isAnswerEdit: false,
+            ref_answer: "",
         }
     },
     methods: {
@@ -259,38 +323,121 @@ export default {
         closeModal() {
         this.isModalOpen = false;
         },
+        // renderMarkdown(content) {
+        //     // console.log(content)
+        //     if(content == null){
+        //         return null;
+        //     }
+        //     // 去掉字符串中的\n
+        //     const sanitizedInput = content.replace(/\\n/g, '\n').replace(/^```markdown/, '').replace(/```$/, '').replace(/```/g, '\\`\\`\\`');
+        //     console.log("处理后的代码",sanitizedInput)
+        //     return this.markdownItInstance.render(sanitizedInput);
+        // },
         renderMarkdown(content) {
-            if(content == null){
-                return null;
+            // 处理代码块
+            content = content.replace(/```([\s\S]*?)\n([\s\S]*?)```/g, function(match, lang, code) {
+                console.log("Matched language:", lang, code);
+                if (lang.trim() === 'latex') {
+                    try {
+                        return katex.renderToString(code, { displayMode: true });
+                    } catch (error) {
+                        return `<pre><code class="language-latex">${code}</code></pre>`; // 如果解析失败，返回原始字符串
+                    }
+                } else {
+                    return `<pre><code class="language-${lang.trim()}">${code}</code></pre>`;
+                }
+            });
+            content = content.replace(/\\n/g, '\n').replace(/^```markdown/, '').replace(/```$/, '').replace(/```/g, '\\`\\`\\`');
+            // 处理行内公式
+            content = content.replace(/\$([^$]+)\$/g, function(match, p1) {
+            return `\\(${p1}\\)`;
+            });
+            content = content.replace(/\\(?![\\])/g, '\\\\');
+            
+            // 处理行内公式
+            content = content.replace(/\$([^$]+)\$/g, function(match, p1) {
+                return `\\(${p1}\\)`;
+            });
+
+            // 处理块级公式
+            content = content.replace(/\$\$([\s\S]*?)\$\$/g, function(match, p1) {
+                return `\\[${p1}\\]`;
+            });
+            // 处理 LaTeX 公式
+            function replaceLatex(match, p1) {
+                console.log("处理latex公式：",p1);
+                try {
+                    return katex.renderToString(p1, { displayMode: false });
+                } catch (error) {
+                    return match; // 如果解析失败，返回原始字符串
+                }
             }
-            // 去掉字符串中的\n
-            const sanitizedInput = content.replace(/\\n/g, '\n').replace(/^```markdown/, '').replace(/```$/, '');
-            return this.markdown.render(sanitizedInput);
+
+            function replaceBlockLatex(match, p1) {
+                console.log("处理latex复杂公式：",p1);
+                try {
+                    return katex.renderToString(p1, { displayMode: true });
+                } catch (error) {
+                    return match; // 如果解析失败，返回原始字符串
+                }
+            }
+            // 处理行内公式
+            content = content.replace(/\$([^$]+)\$/g, replaceLatex);
+
+            // 处理块级公式
+            content = content.replace(/\$\$([\s\S]*?)\$\$/g, replaceBlockLatex);
+
+            // 处理复杂的 LaTeX 公式
+            content = content.replace(/\\begin{([\s\S]*?)}([\s\S]*?)\\end{([\s\S]*?)}/g, function(match, p1, p2, p3) {
+                if (p1 === p3) {
+                    try {
+                        return katex.renderToString(`\\begin{${p1}}${p2}\\end{${p3}}`, { displayMode: true });
+                    } catch (error) {
+                        return match; // 如果解析失败，返回原始字符串
+                    }
+                }
+                return match; // 如果不匹配，返回原始字符串
+            });
+            // 处理Markdown
+            this.renderedContent = marked(content);
+
+            this.$nextTick(() => {
+                // 语法高亮
+                this.$el.querySelectorAll('pre code').forEach((block) => {
+                hljs.highlightBlock(block);
+                });
+
+                // 渲染LaTeX公式
+                if (window.MathJax) {
+                window.MathJax.typesetPromise();
+                }
+            });
+            return this.renderedContent;
         },
         async nextPage() {
             // 获取下一页数据
-            const model_l = this.modelList;
             const page = this.currentPage + 1;
-            this.saveAndGet(model_l, page);
+            this.saveAndGet(page);
         },
         async prevPage() {
             // 获取上一页数据
             const page = this.currentPage - 1;
-            const model_l = this.modelList;
-            this.saveAndGet(model_l, page);
+            this.saveAndGet(page);
         },
         async jump() {
             console.log("jump page",this.jumpPage);
-            const model_l = this.modelList;
-            this.saveAndGet(model_l, this.jumpPage,true);
+            this.saveAndGet(this.jumpPage,true);
         },
         scaleScore(standardScore) {
             let scale = null;
+            console.log("sclae score",this.ratingStandard)
             if(this.ratingStandard == 3) {
                 scale = d3.scaleOrdinal().domain([1,2,3]).range([0,0.5,1])
-            } else {
-                // else = 5
+            } else if(this.ratingStandard == 5) {
                 scale = d3.scaleOrdinal().domain([1,2,3,4,5]).range([0,1,2,3,4])
+            } else {
+                // 10
+                scale = d3.scaleOrdinal().domain([1,2,3,4,5,6,7,8,9,10]).range([0,1,2,3,4,5,6,7,8,9])
             }
             return scale(standardScore);
         },
@@ -298,25 +445,23 @@ export default {
             let scale = null;
             if(this.ratingStandard == 3) {
                 scale = d3.scaleOrdinal().domain([0,0.5,1]).range([1,2,3])
+            } else if(this.ratingStandard == 5) {
+                scale = d3.scaleOrdinal().domain([0,1,2,3,4]).range([1,2,3,4,5])
             } else {
-                // else = 5
-                scale = d3.scaleOrdinal().domain([0,0.25,0.5,0.75,1]).range([1,2,3,4,5])
+                scale = scale = d3.scaleOrdinal().domain([0,1,2,3,4,5,6,7,8,9]).range([1,2,3,4,5,6,7,8,9,10])
             }
             return scale(score);
         },
         onRatingChange(score, index) {
-            console.log('model list index', index)
-            // 映射到相应的分数段
-            this.modelList[index].score = this.scaleScore(score);
-            console.log("new score",this.modelList[index].score)
+            console.log('model list index, score', index, score)
+
+            const save_score = this.scaleScore(score)
+            this.pageInfo.modelList[index].score = save_score;
             // 记录修改的索引
             if (!this.pageEdit.includes(index)) {
                 this.pageEdit.push(index);
             }
-            // // this.modelList[index].score = this.scaleScore(value)
-
-            // this.saveOneClick = false;
-            // this.saveAllClick = false;
+           
         },
         saveOnePage() {
             this.saveOneClick = true;
@@ -326,7 +471,8 @@ export default {
             this.saveAllClick = true;
             // save all to database
         },
-        async saveAndGet(model_l,nextPage,isJump=false) {
+        async saveAndGet(nextPage,isJump=false) {
+            const model_l = this.pageInfo.modelList;
             if(this.pageEdit && this.pageEdit.length && this.pageEdit.length > 0) {
                 // 保存本页数据
                 const modelList = this.pageEdit.map(index => ({
@@ -485,7 +631,34 @@ export default {
                 console.error('Error getting filter list and first page:', error)
             }
             
-        }
+        },
+        async handleAnswer() {
+            console.log("edit answer", this.isAnswerEdit, this.ref_answer,this.editedAnswer);
+            if(this.isAnswerEdit) {
+                // 保存并上传
+                this.ref_answer = this.editedAnswer;
+                this.$store.dispatch("updateIsLoading", true);
+                try {
+                    const res = await api.editAnswer(this.data_info_id, this.editedAnswer);
+                    console.log(res);
+                    if(res.data["error"]) {
+                        this.showToast('error','Error', res.data["error"])
+                    }
+                    this.$store.dispatch("updateIsLoading",false);
+                }
+                catch(err) {
+                    console.log("修改ref answer",err);
+                }
+            } else {
+                this.editedAnswer = this.ref_answer
+            }
+            this.isAnswerEdit = !this.isAnswerEdit;
+            
+        },
+        showToast(severity,summary,detail){
+            this.$refs.toast.add({ severity: severity, summary: summary, detail: detail, life: 2000 })
+        },
+
     }
 }
 </script>
@@ -565,6 +738,10 @@ export default {
    /* position: absolute; */
     /* left: 75px; */
     cursor: pointer;
+   
+}
+.edit {
+    flex-grow: 1;
 }
 .page-change {
     bottom: 0;
@@ -607,6 +784,12 @@ export default {
 }
 .rating {
     display: inline-flex;
+}
+
+.rating-line {
+    display: flex;
+    justify-content: space-between;
+    flex-direction: column;
 }
 
 .rating span {
@@ -739,6 +922,12 @@ export default {
 .custom-query-button:hover {
     background-color: #f1f8ff; 
 }
+.ref_answer_span {
+    border-radius: 50%;
+    border: 1.5px solid #dceeff;
+    width: 28px;
+    height: 28px;
+}
 </style>
 <style scoped>
 
@@ -770,14 +959,10 @@ export default {
     box-sizing: border-box;
     flex-basis: 24px;
 }
-::v-deep .p-datatable .p-datatable-thead > tr > th:nth-child(1) {
-    width: 200px;
-    word-wrap: break-word;
+::v-deep .p-datatable {
+    width: 100%;
 }
-::v-deep .p-datatable .p-datatable-tbody > tr > td:nth-child(1) {
-    width: 200px;
-    word-wrap: break-word;
-}
+
 ::v-deep .p-tag {
     font-size: 0.9rem;
 }

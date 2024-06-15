@@ -43,7 +43,9 @@ class DataInfo(Model):
     tags = fields.ManyToManyField('models.Tag', related_name='data_infos', through='image_tag')
     results = fields.ReverseRelation['Result']
     question = fields.TextField()
-    image_abs_path = fields.CharField(max_length=255, null="")
+    image_abs_path = fields.CharField(max_length=500, null="")
+    ref_answer = fields.TextField(null=True)
+    
 
 class Result(Model):
     id = fields.IntField(pk=True)
@@ -53,8 +55,9 @@ class Result(Model):
     answer = fields.TextField(null=True)
     score_3 = fields.FloatField(null=True, default=None)
     score_5 = fields.FloatField(null=True, default=None)
-    score_else = fields.FloatField(null=True, default=None)
+    score_10 = fields.FloatField(null=True, default=None)
     standard = fields.FloatField(null=True)
+    reason = fields.TextField(null=True)
 
 
 
@@ -88,8 +91,6 @@ async def model_run():
 
 async def add_datasets_from_directory(dir):
     for folder_name in os.listdir(dir):
-        if folder_name == "xiaomi_v1":
-            continue
         folder_path = os.path.join(dir,folder_name)
         if os.path.isdir(folder_path):
             dataset, created = await Dataset.get_or_create(name=folder_name)
@@ -109,10 +110,10 @@ async def add_standards_from_json(directory_path):
                         name, value = standard_dict
                         if value == [0, 0.5, 1]:
                             value = 3
-                        else:
+                        elif value == [0,1,2,3,4]:
                             value = 5
-                        # elif value == "[0,1,2,3,4]":
-                        #     value = 5
+                        else:
+                            value = 10
                         standard,_ = await Standard.get_or_create(name = name, value = value)
 
 async def process_josn_file(directory_path):
@@ -121,8 +122,6 @@ async def process_josn_file(directory_path):
     """
     tag_directory = os.path.join(directory_path, "dataset")
     for folder_name in os.listdir(tag_directory):
-        if folder_name == "xiaomi_v1":
-            continue
         folder_path = os.path.join(tag_directory, folder_name)
         if os.path.exists(folder_path):
             try:
@@ -145,9 +144,12 @@ async def add_new_category_tag_datainfo(folder_path,data, dataset):
     question = data["question"]
     image_path = os.path.join(folder_path,"images",filename)
     normalized_question = remove_end_point(question)
+    ref__ = ""
+    if(data["ref_answer"]):
+        ref__ = str(data["ref_answer"])
     # create DataInfo item
     try:
-        data_info, _ = await DataInfo.get_or_create(image_path=filename, dataset=dataset, question=normalized_question, image_abs_path=image_path)
+        data_info, _ = await DataInfo.get_or_create(image_path=filename, dataset=dataset, question=normalized_question, image_abs_path=image_path, ref_answer = ref__)
         if "category" in data and data["category"]:
             category_name = data["category"]
             category, _ = await Category.get_or_create(name=category_name)
@@ -164,24 +166,40 @@ async def add_new_category_tag_datainfo(folder_path,data, dataset):
     except DoesNotExist as e:
         raise e
     
+   
 
 
-async def update_datainfo_category_tag(folder_path,dataset):
+async def del_dataset_result(dataset):
+    # 获取所有与该dataset相关的DataInfo记录的ID
+    data_info_ids = await DataInfo.filter(dataset=dataset).values_list('id', flat=True)
+    # 删除所有与这些DataInfo记录关联的Result记录
+    await Result.filter(data_info_id__in=data_info_ids).delete()
+    await DataInfo.filter(dataset=dataset).delete()
+    # 删除所有与该dataset相关的DataInfo记录
+    await DataInfo.filter(dataset=dataset).delete()
+
+
+async def update_datainfo_category_tag(folder_path,dataset_name,dataset):
+    """
+    此函数只有在dataset更新时才会调用，删掉原datainfo和对应的result，重新加result和score
+    """
+    del_dataset_result(dataset)
+    
     json_file_path = os.path.join(folder_path,"json_files","dataset_info.json")
     if os.path.exists(json_file_path):
         # 获取dataset下的所有DataInfo
-        data_infos = await DataInfo.filter(dataset=dataset).order_by('id')
-        print("已找到的datainfo个数",len(data_infos))
         with open(json_file_path, 'r') as json_file:
             data_list = json.load(json_file)
             for index, data in enumerate(data_list):
+                await add_new_category_tag_datainfo(folder_path,data,dataset)
+    
+    # 新增result
+    result_dir = os.path.join('/mnt/afs/user/chenzixuan/eval_tool_info/results',dataset_name)
+    await process_results(result_dir)
+    # 新增 score
+    score_dir = os.path.join('/mnt/afs/user/chenzixuan/eval_tool_info/results_score',dataset_name)
+    await process_results_score(score_dir)
 
-                if index < len(data_infos):
-                    data_info = data_infos[index]
-                    await update_datainfo(folder_path, data_info, data,dataset)
-                else:
-                    # 如果data_list比现有的DataInfo更多，则创建新的DataInfo
-                    await add_new_category_tag_datainfo(folder_path,data,dataset)
 
 async def update_datainfo(folder_path, data_info, data,dataset):
     filename = data["filename"]
@@ -190,6 +208,7 @@ async def update_datainfo(folder_path, data_info, data,dataset):
     question = data["question"]
     image_path = os.path.join(folder_path,"images",filename)
     normalized_question = remove_end_point(question)
+    ref_answer = str(data["ref_answer"])
 
     update_needed = False
     if data_info.image_path != filename:
@@ -200,6 +219,9 @@ async def update_datainfo(folder_path, data_info, data,dataset):
         update_needed = True
     if data_info.question != normalized_question:
         data_info.question = normalized_question
+        update_needed = True
+    if data_info.ref_answer != ref_answer:
+        data_info.ref_answer = ref_answer
         update_needed = True
     
     
@@ -224,7 +246,8 @@ async def update_datainfo(folder_path, data_info, data,dataset):
     if update_needed:
         await data_info.save()
         print(f"DataInfo {data_info.id} updated.")
-    
+   
+ 
 
 async def process_results(directory_path):
     """
@@ -232,11 +255,15 @@ async def process_results(directory_path):
     """
     for folder_name in os.listdir(directory_path):
         # 这里的folder name是dataset
+        if "llm_test" == folder_name:
+            continue
         folder_path = os.path.join(directory_path, folder_name)
         if os.path.exists(folder_path):
             try:
                 dataset = await Dataset.get(name=folder_name)  # 保证数据集存在
                 for result_name in os.listdir(folder_path):
+                    if result_name == "d240510_v2_honor_search_xiaomi_v2_vit6b_internlm20b.jsonl" or result_name == "d240521_xiaomi_v2_vit6b_internlm20b.jsonl":
+                        continue
                     result_path = os.path.join(folder_path,result_name)
                     await add_result(dataset,result_name,result_path)
             except DoesNotExist:
@@ -248,6 +275,7 @@ async def add_result(dataset, result_name, result_path):
     # folder_path, folder_name
     if result_name.endswith('.json') or result_name.endswith('.jsonl'):
         model_name, _ = os.path.splitext(result_name)
+        print("add result",model_name)
         try:
             model,_ = await ModelName.get_or_create(name=model_name, dataset=dataset)
             with open(result_path, 'r') as json_file:
@@ -258,6 +286,7 @@ async def add_result(dataset, result_name, result_path):
                     # 如果无法解析为 JSON，则将其视为 JSONL 文件
                     json_file.seek(0)
                     data_list = [json.loads(line) for line in json_file]
+                print("len data",len(data_list))
                 # data_list = json.load(json_file)
                 for data in data_list:
                     filename = data["filename"]
@@ -269,6 +298,7 @@ async def add_result(dataset, result_name, result_path):
                     # 首先根据 image_path 进行过滤
                     candidates = await DataInfo.filter(image_path=filename)
                     data_info = None
+                    print("image f=path qyetion",filename,normalized_question)
                     if len(candidates) == 1:
                         # 如果只有一个候选项，直接返回这个候选项
                         data_info =  candidates[0]
@@ -308,11 +338,13 @@ async def add_score(dataset, model_name, model_path):
         standard = None
         if 'xiaomi_standard' in model_name:
             standard = 3
-        elif '_intern_standard' in model_name:
+        elif 'gpt4_five_point' in model_name:
             standard = 5
+        elif 'gpt4_ten_point' in model_name:
+            standard = 10
         # 去掉从第一个横杠开始的部分及文件后缀
         # model_name = re.sub(r'-.*$', '', model_name)
-        model_name = model_name.replace('-xiaomi_standard','').replace('-intern_standard','').replace('.json','').replace('.jsonl','')
+        model_name = model_name.replace('-xiaomi_standard','').replace('-gpt4_ten_point','').replace('-gpt4_five_point','').replace('.jsonl','').replace('.json','')
 
         try:
             model = await ModelName.get(name=model_name,dataset=dataset)
@@ -326,7 +358,6 @@ async def add_score(dataset, model_name, model_path):
                     question = data.get("question") or data.get("ask_question")
                     normalized_question = remove_end_point(question)
                     score = data.get("score")
-                    print(f"score : {score}, {model_name}")
                     if score is None or isinstance(score, float) and math.isnan(score):
                         continue
                     # 首先根据 image_path 进行过滤
@@ -339,10 +370,10 @@ async def add_score(dataset, model_name, model_path):
                         for candidate in candidates:
                             if candidate.question == normalized_question:
                                 data_info = candidate
-                    assert data_info, f"Error, data_info not found, {filename}, {question}"
+                    assert data_info, f"Error, data_info not found, {filename}, {normalized_question}"
                     try:
-                        result_count = await Result.filter(dataset=dataset,model=model,data_info = data_info).count()
                         result = await Result.get(dataset=dataset,model=model,data_info = data_info)
+                        print(result.id)
                         try:
                             score = float(score)
                         except ValueError:
@@ -354,8 +385,10 @@ async def add_score(dataset, model_name, model_path):
                         elif standard==5:
                             result.score_5 = score
                         else:
-                            result.score_else = score
+                            result.score_10 = score
                         result.standard = standard
+                        if data.get("reason"):
+                            result.reason = data["reason"]
                         await result.save()
                         
                     except DoesNotExist:

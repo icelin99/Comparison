@@ -1,6 +1,6 @@
 from app.database import Result, DataInfo, Tag, ModelName, Dataset, Category, Standard, update_datainfo_category_tag, add_new_category_tag_datainfo, add_result, add_score
 from app.request import SaveRequest, ScoreFileRequest
-from app.database import remove_end_point
+from app.database import remove_end_point,del_dataset_result
 from tortoise.exceptions import DoesNotExist
 from fastapi.responses import JSONResponse, StreamingResponse
 from typing import List
@@ -106,6 +106,8 @@ async def get_filter_results(datasetID, modelIDs: list , standard: int, TagIDs: 
     result_query_all = result_query.order_by('data_info__id')
     all_results = await result_query_all.distinct()
     result_ids = [result.id for result in all_results]
+    data_info_ids = [result.data_info_id for result in all_results]
+    print("All data_info ids:", data_info_ids)
     #########################
     page_size = 1  # 默认一页显示一条数据
     offset = (page - 1) * page_size
@@ -115,8 +117,18 @@ async def get_filter_results(datasetID, modelIDs: list , standard: int, TagIDs: 
         first_data_info = first_result[0].data_info_id
     print("first data into id",first_data_info)
 
+    page_info = {
+        "image_path": None,
+        "question": None,
+        "ref_answer": None,
+        "tags": [],
+        "categories": [],
+        "image_code": None,
+        "data_info_id": first_data_info,
+        "modelList": []
+    }
+
     for modelID in modelIDs:
-        result_i = []
         result_query = Result.filter(dataset_id=datasetID,model_id=modelID, data_info_id = first_data_info)
 
         results = await result_query.distinct()
@@ -134,48 +146,55 @@ async def get_filter_results(datasetID, modelIDs: list , standard: int, TagIDs: 
             elif standard == 5:
                 score = result.score_5
             else: 
-                score = result.score_3
-            page_info = {
-                "image_path": data_info.image_path,
-                "question": data_info.question,
-                "tags": [tag.name for tag in await data_info.tags],
-                "categories": [category.name for category in await data_info.categories],
-                "image_code": f"data:{mime_type};base64,{encoded_image}",
-                "data_info_id":first_data_info,
-                "modelList": [
-                    {
-                        "model_id": result.model_id,
-                        "model_name": model_id_to_name.get(result.model_id, "Unknown Model"),
-                        "answer": result.answer,
-                        "score": score,
-                        "standard": result.standard
-                    }
-                ]
+                score = result.score_10
+            
+            if not page_info["image_path"]:
+                page_info.update({
+                    "image_path": data_info.image_path,
+                    "question": data_info.question,
+                    "ref_answer": data_info.ref_answer,
+                    "tags": [tag.name for tag in await data_info.tags],
+                    "categories": [category.name for category in await data_info.categories],
+                    "image_code": f"data:{mime_type};base64,{encoded_image}",
+                    "data_info_id": first_data_info
+                })
+
+            model_entry = {
+                "model_id": result.model_id,
+                "model_name": model_id_to_name.get(result.model_id, "Unknown Model"),
+                "answer": result.answer,
+                "score": score,
+                "standard": result.standard
             }
-            result_i.append(page_info)
-        if result_i == []:
-            pageInfo = []
-        else:
-            pageInfo.append(result_i[0])
+
+            if result.standard in [5, 10]:
+                model_entry["reason"] = result.reason
+
+            page_info["modelList"].append(model_entry)
 
     return {
         "total_page": total_count,
-        "page_info": pageInfo  # 前端默认只显示一页 故只传一条数据
+        "page_info": page_info  # 前端默认只显示一页 故只传一条数据
     }
 
 
 
 def get_mime_type(file_path):
     # 检查文件扩展名并确定 MIME 类型
-    ext = os.path.splitext(file_path)[1].lower()
-    mime_types = {
-        '.jpg': 'image/jpeg',
-        '.jpeg': 'image/jpeg',
-        '.png': 'image/png',
-        '.gif': 'image/gif'
-    }
-    mime_type = mime_types[ext]
-    return mime_type
+    if os.path.exists(file_path):
+        ext = os.path.splitext(file_path)[1].lower()
+        mime_types = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.webp': 'image/webp',
+        }
+        mime_type = mime_types[ext]
+        return mime_type
+    else:
+        print("图片路径找不到！！！！！")
+        return None
 
 async def save_page_by_page(page, data_info_id,datasetID, modelID, standard, score: float = None):
     result_query = Result.filter(dataset_id=datasetID,model_id=modelID,data_info_id=data_info_id)
@@ -190,7 +209,7 @@ async def save_page_by_page(page, data_info_id,datasetID, modelID, standard, sco
         elif standard ==5:
             result.score_5 = score
         else:
-            result.score_else = score
+            result.score_10 = score
         result.standard = standard
         await result.save()
         # verify_result = await Result.get(id=result.id)
@@ -286,7 +305,7 @@ async def update_dataset_by_path(dataset_dir):
         if check_file == "OK":
             try:
                 dataset = await Dataset.get(name=dir_name)
-                await update_datainfo_category_tag(dataset_dir,dataset)
+                await update_datainfo_category_tag(dataset_dir,dir_name,dataset)
                 return {"success": "成功更新dataset和datainfo！"}
             except DoesNotExist:
                 print("data set 新增")
@@ -337,7 +356,7 @@ async def update_score_by_path(score_path):
         check = check_score_file(dataset_dir,score_path,file_name,dataset_name)
         print("dataset ",dataset_name, " file name ", file_name)
         if check == "OK":
-            model_name = file_name.replace('-xiaomi_standard','').replace('-intern_standard','').replace('.json','').replace('.jsonl','')
+            model_name = file_name.replace('-xiaomi_standard','').replace('-gpt4_ten_point','').replace('-gpt4_five_point','').replace('.jsonl','').replace('.json','')
             try:
                 dataset = await Dataset.get(name=dataset_name)
                 try:
@@ -361,7 +380,7 @@ async def fetch_save_file(datasetID, modelID,standard):
 
     dataset = await Dataset.get(id=datasetID)
     model = await ModelName.get(id=modelID)
-    standard_model = await Standard.get(value=standard)
+    standard_model = await Standard.filter(value=standard).first()
     results = await Result.filter(
             dataset_id=datasetID,
             model_id=modelID,
@@ -372,12 +391,16 @@ async def fetch_save_file(datasetID, modelID,standard):
     data = []
     for result in results:
         categories = [category.name for category in await result.data_info.categories.all()]
-        data.append({
-                "filename": result.data_info.image_path,
-                "question": result.data_info.question,
-                "category": categories,
-                "score": result.score_3 if standard == 3 else result.score_5 if standard == 5 else result.score_else
-            })
+        entry = {
+            "filename": result.data_info.image_path,
+            "question": result.data_info.question,
+            "category": categories,
+            "ref_answer": result.data_info.ref_answer,
+            "answer": result.answer,
+            "reason": result.reason,
+            "score": result.score_3 if standard == 3 else result.score_5 if standard == 5 else result.score_10
+        }
+        data.append(entry)
     
     file_name = f"results_{dataset.name}_{model.name}_{standard_model.name}.json"
     file_content = json.dumps(data, ensure_ascii=False).encode('utf-8')
@@ -445,7 +468,7 @@ def check_result_file(dataset_dir,file_path):
 
 def check_score_file(dataset_dir,score_path,score_name,dataset_name):
     required_keys = {'filename', 'question', 'score'}
-    base_image_path = os.path.josin(dataset_dir,'images')
+    base_image_path = os.path.join(dataset_dir,'images')
     data = []
     # 检查文件是否为 JSON 或 JSONL 格式
     try:
@@ -479,10 +502,124 @@ def check_score_file(dataset_dir,score_path,score_name,dataset_name):
     return "OK"
 
 def check_filename_in_directory(filename,dataset_name):
-    # 去掉 "-xiaomi_standard" 和 "-intern_standard" 后缀
-    stripped_filename = filename.replace('-xiaomi_standard','').replace('-intern_standard','').replace('.json','').replace('.jsonl','')
+    stripped_filename = filename.replace('-xiaomi_standard','').replace('-gpt4_ten_point','').replace('-gpt4_five_point','').replace('.jsonl','').replace('.json','')
     for result_name in os.listdir(os.path.join('/mnt/afs/user/chenzixuan/eval_tool_info/results',dataset_name)):
-        result_name_check = result_name.replace('.json','').replace('.jsonl','')
+        result_name_check = result_name.replace('.jsonl','').replace('.json','')
         if result_name_check == stripped_filename:
             return True
     return False
+
+async def save_ref_answer(data_info_id, ref_answer):
+    data_info = await DataInfo.get(id=data_info_id)
+    print("save ref answer:",data_info_id,)
+    if data_info:
+        data_info.ref_answer = ref_answer
+        await data_info.save()
+    else:
+        return {"error": "DataInfo not found"}
+
+    return {"success": "Ref answer saved successfully"}
+
+async def del_dataset(dataset_name):
+    try:
+        dataset = await Dataset.get(name=dataset_name)
+        await del_dataset_result(dataset)
+        return {"success": "成功删除dataset和对应的所有result！"}
+
+    except DoesNotExist:
+        return {"error":"dataset不存在"}
+
+async def del_result(result_path):
+    if os.path.exists(result_path):
+        file_name = os.path.basename(result_path)
+        dataset_name = os.path.basename(os.path.dirname(result_path))
+        model_name = file_name.replace(".jsonl","").replace(".json","")
+        try:
+            dataset = await Dataset.get(name=dataset_name)
+            try:
+                model = await ModelName.get(name=model_name, dataset_id = dataset.id)
+                try:
+                    await Result.filter(dataset=dataset, model=model).delete()
+                    return {"success": "删除result结果成功！"}
+                except Exception as e:
+                    return {"error": e}
+            except DoesNotExist:
+                return {"error": "model 不存在"}
+        except DoesNotExist:
+            return {"error": "dataset 不存在"}
+    
+async def get_accuracy_table(datasetIDs, modelIDs, standard):
+    # 目前只允许一个dataset
+    if isinstance(datasetIDs,(int, float)):
+        datasetIDs = [datasetIDs]
+    accuracy_table = {}
+    model_names = await ModelName.filter(id__in=modelIDs).values_list('id', 'name')
+    model_id_to_name = {model_id: name for model_id, name in model_names}
+    for dataset_id in datasetIDs:
+        data_infos = await DataInfo.filter(dataset_id=dataset_id).prefetch_related('categories', 'tags', 'results')
+        categories = {}
+        for data_info in data_infos:
+            if data_info.categories:
+                for category in data_info.categories:
+                    if category.id not in categories:
+                        categories[category.id] = {'name': category.name, 'tags': {}}
+                    if data_info.tags:
+                        for tag in data_info.tags:
+                            if tag.id not in categories[category.id]['tags']:
+                                categories[category.id]['tags'][tag.id] = {'name': tag.name, 'data_infos': []}
+                            categories[category.id]['tags'][tag.id]['data_infos'].append(data_info.id)
+                    else:
+                        if 'None' not in categories[category.id]['tags']:
+                            categories[category.id]['tags']['None'] = {'name': 'None', 'data_infos': []}
+                        categories[category.id]['tags']['None']['data_infos'].append(data_info.id)
+            else:
+                if 'None' not in categories:
+                    categories['None'] = {'name': 'None', 'tags': {}}
+                if data_info.tags:
+                    for tag in data_info.tags:
+                        if tag.id not in categories['None']['tags']:
+                            categories['None']['tags'][tag.id] = {'name': tag.name, 'data_infos': []}
+                        categories['None']['tags'][tag.id]['data_infos'].append(data_info.id)
+                else:
+                    if 'None' not in categories['None']['tags']:
+                        categories['None']['tags']['None'] = {'name': 'None', 'data_infos': []}
+                    categories['None']['tags']['None']['data_infos'].append(data_info.id)
+        print("dataset id",dataset_id, " category",categories)
+        for category_id, category_data in categories.items():
+            for tag_id, tag_data in category_data['tags'].items():
+                model_scores = {model_id: [] for model_id in modelIDs}
+                for data_info in tag_data['data_infos']:
+                    results = await Result.filter(dataset_id=dataset_id, data_info_id=data_info, model_id__in=modelIDs)
+                    for result in results:
+                        score = None
+                        if int(standard) == 3:
+                            score = result.score_3
+                        if int(standard) == 5:
+                            score = result.score_5
+                        if int(standard == 10):
+                            score = result.score_10
+                        if score is not None:
+                            model_scores[result.model_id].append(score)
+                        
+
+                for model_id, scores in model_scores.items():
+                    if scores:
+                        accuracy = sum(scores) / len(scores) * 100
+                        if int(standard) == 5:
+                            accuracy = accuracy / 4
+                    else:
+                        accuracy = None
+                    dataset__ = await Dataset.get(id=dataset_id)
+                    if dataset__.name not in accuracy_table:
+                        accuracy_table[dataset__.name] = {}
+                    if category_data["name"] not in accuracy_table[dataset__.name]:
+                        accuracy_table[dataset__.name][category_data["name"]] = {}
+                    if tag_data["name"] not in accuracy_table[dataset__.name][category_data["name"]]:
+                        accuracy_table[dataset__.name][category_data["name"]][tag_data["name"]] = []
+                    accuracy_table[dataset__.name][category_data["name"]][tag_data["name"]].append({
+                        'model_id': model_id,
+                        'model_name': model_id_to_name.get(model_id),
+                        'accuracy': "None" if accuracy is None else "%.2f%%" % accuracy
+                    })
+    print(accuracy_table)
+    return accuracy_table    

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Query, HTTPException, UploadFile, File, Form
 from typing import Optional, List
 from .database import Dataset, ModelName, Standard, Category, Tag, DataInfo, Result
-from .db_query import get_tags_by_dataset_and_categories, get_filter_results, save_page_by_page, read_file, fetch_save_file, get_categories, get_tags, update_dataset_by_path, update_result_by_path,update_score_by_path
+from .db_query import get_tags_by_dataset_and_categories, get_filter_results, save_page_by_page, read_file, fetch_save_file, get_categories, get_tags, update_dataset_by_path, update_result_by_path,update_score_by_path, save_ref_answer, del_dataset, del_result, get_accuracy_table
 from tortoise.exceptions import DoesNotExist
-from .request import TagRequest, FilterRequest, SaveRequest, PathRequest, ScoreFileRequest, CategoryRequest
+from .request import TagRequest, FilterRequest, SaveRequest, PathRequest, ScoreFileRequest, CategoryRequest, EditAnswerRequest, DeleteDataset, DeleteResult, AccuracyRequest
 from fastapi.responses import FileResponse
 import os
 import uuid
@@ -33,7 +33,15 @@ async def get_model_list(datasetID: Optional[int] = None):
 @router.get("/list/standard/")
 async def get_standard_list():
     standards = await Standard.all()
-    return [{"id": standard.id, "name": standard.value} for standard in standards]
+    seen_values = set()
+    unique_standards = []
+
+    for standard in standards:
+        if standard.value not in seen_values:
+            seen_values.add(standard.value)
+            unique_standards.append({"id": standard.id, "name": standard.value})
+    
+    return unique_standards
 
 
 @router.post("/list/category/")
@@ -141,3 +149,25 @@ async def download_file(file_name: str):
         return FileResponse(file_path, filename=file_name)
     else:
         raise HTTPException(status_code=404, detail="File not found")
+
+@router.post("/edit-answer/")
+async def edit_answer(request: EditAnswerRequest):
+    ans = await save_ref_answer(request.datainfoID, request.ref_answer)
+    return ans
+
+@router.post("/delete-result/")
+async def delete_result(request: DeleteResult):
+    res = await del_result(request.path)
+    print(res)
+    return res
+
+@router.post("/delete-dataset/")
+async def delete_dataset(request: DeleteDataset):
+    res = await del_dataset(request.dataset_name)
+    print(res)
+    return res
+
+@router.post("/accuracy/")
+async def get_accuracy(request: AccuracyRequest):
+    res = await get_accuracy_table(request.datasetID, request.modelIDs, request.standard)
+    return res

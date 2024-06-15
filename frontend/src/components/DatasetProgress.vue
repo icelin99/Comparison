@@ -104,7 +104,7 @@ export default {
       selectedDataset: null,
       models: ["wenwen_1_20b","model2","model3"],
       selectedModel: null,
-      standards: ["3档","5档"],
+      standards: ["3档","5档", "10档"],
       selectedStandard: null,
       questions: [],
       selectedQuestion: null,
@@ -180,7 +180,7 @@ export default {
             const response = await api.getFilterList(parseInt(localStorage.getItem("datasetID"),10), JSON.parse(localStorage.getItem("modelIDs")));
             console.log("get li list and first page",response.data);
             this.$store.dispatch("updatePageCount",response.data["page_count"]);
-            this.$store.dispatch("updatePageInfo",response.data["page_info"]);
+            this.$store.dispatch("updatePageInfo",JSON.parse(JSON.stringify(response.data["page_info"])));
             this.$store.dispatch("updateSelectSubmitted", true);
             this.$store.dispatch("updateAlreadySubmit", true);
             this.$store.dispatch('updateIsLoading', false);
@@ -230,10 +230,13 @@ export default {
         //默认3档和5档，name值只有3和5
         const item = this.standards.find(item => item.id == this.selectedStandard);
         const name = item? item.name: undefined;
+        console.log("select standard",name);
         if(String(name) == "3") {
             this.$store.dispatch("updateRatingStandard",3);
         } else if(String(name) == "5") {
             this.$store.dispatch("updateRatingStandard",5);
+        } else {
+            this.$store.dispatch("updateRatingStandard",10);
         }
         
     },
@@ -321,7 +324,7 @@ export default {
     async getStandardList() {
         try {
             const response = await api.getStandardList();
-            console.log("response",response.data);
+            console.log("response standard",response.data);
             this.standards = response.data;
         }
         catch (error) {

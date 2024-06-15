@@ -5,8 +5,11 @@
             <div class="sidebar-list">
                 
                     <div  class="sidebar-item">
-                        <Button @click="clearClick">清空所选项</Button></div>
+                        <Button @click="clearClick">清空所选项并跳转到主页面</Button></div>
                     <div  class="sidebar-item"><Button @click="fileShow = true">上传JSON文件</Button></div>
+                    <div  class="sidebar-item">
+                        <Button @click="goDelete" >删除相关信息</Button>
+                    </div>
                     <div  class="sidebar-item"><Button @click="saveShow = true">查看打分结果</Button></div>
                     <div  class="sidebar-item">
                         <Button @click="seeAccuracy" >准确率表格</Button>
@@ -14,6 +17,9 @@
                     <div  class="sidebar-item">
                         <Button @click="goMarkdown" >Markdown 编译</Button>
                     </div>
+                    <!-- <div  class="sidebar-item">
+                        <Button @click="goMarkdownShow" >Markdown 编译显示</Button>
+                    </div> -->
 
             </div>
         </Sidebar>
@@ -21,7 +27,7 @@
            
             <span class="p-text-secondary block mb-5">请选择上传形式</span>
             <div class="mt-3 mb-3 flex align-items-center">
-                <RadioButton v-model="uploadMethod" inputId="uploadFile" name="uploadMethod" value="file" />
+                <RadioButton v-model="uploadMethod" inputId="uploadFile" name="uploadMethod" value="file" :disabled="true" />
                 <label for="ingredient1" class="ml-2">上传文件</label>
             </div>
             <div class="mt-3 mb-3 flex align-items-center">
@@ -78,6 +84,24 @@
         <Dialog v-model:visible="showMarkdown" modal header="Markdown编辑器" :style="{ width: '80rem' }" >
             <MardownEditor />
         </Dialog>
+        <Dialog v-model:visible="compileMarkdown" modal header="Markdown" :style="{ width: '60rem' }" >
+            <CodeBlockRenderer/>
+        </Dialog>
+        <Dialog v-model:visible="showDelete" modal header="输入待删除的dataset名字或者result地址" :style="{ width: '30rem' }" >
+            <InputText v-model="delete_dataset" :style="{width: '20rem'}"   />
+            <p v-if="deleteType == 'dataset'">请输入dataset名字</p>
+            <p v-if="deleteType == 'result'">请输入result的绝对地址</p>
+            <div class="mt-3 mb-3">
+                <RadioButton v-model="deleteType" inputId="type8" name="deleteType" value="dataset" />
+                <label for="ingredient1" class="ml-2">dataset</label>
+                <RadioButton v-model="deleteType" inputId="type9" name="deleteType" value="result" />
+                <label for="ingredient1" class="ml-2">model result</label>
+            </div>
+            <div class="mt-4 flex justify-content-end">
+                <Button label="取消" icon="pi pi-times" class="p-button-text" @click="fileShow = false" />
+                <Button label="提交" icon="pi pi-check" class="p-button-text" @click="submitDelete" />
+            </div>
+        </Dialog>
         <Toast ref="toast" />
     </div>
 </template>
@@ -95,6 +119,8 @@ import Dropdown from "primevue/dropdown";
 import Message from "primevue/message";
 import Toast from "primevue/toast";
 import MardownEditor from "./MardownEditor.vue";
+import CodeBlockRenderer from "./CodeBlockRenderer.vue";
+
 // import { download } from "@/utils/download";
 
 export default {
@@ -109,7 +135,8 @@ export default {
         Dropdown,
         Message,
         Toast,
-        MardownEditor
+        MardownEditor,
+        CodeBlockRenderer
     },
     computed: {
         ...mapGetters(["filterData","alreadySubmit","dataset"])
@@ -142,6 +169,10 @@ export default {
             messageSeverity: null,
             messageText: null,
             showMarkdown: false,
+            compileMarkdown: false,
+            showDelete:false,
+            delete_dataset: "",
+            deleteType: null,
         }
     },
     methods: {
@@ -149,6 +180,7 @@ export default {
             this.$store.dispatch("updateAlreadySubmit", false);
             console.log("click alrady submit state",this.alreadySubmit);
             this.showSidebar = false;
+            this.$router.push({name: 'Home'})
         },
         onFileUpload(event) {
             console.log("ervent",event);
@@ -280,13 +312,50 @@ export default {
             this.isPathValid = absolutePathPattern.test(this.filePath);
         },
         seeAccuracy() {
-            this.showToast('error',"Error",'good')
+            this.showSidebar = false;
+            this.$router.push({
+                name:"AccuracyTable"
+            })
         },
         showToast(severity,summary,detail){
             this.$refs.toast.add({ severity: severity, summary: summary, detail: detail, life: 2000 })
         },
         goMarkdown() {
             this.showMarkdown = true;
+        },
+        goMarkdownShow() {
+            this.compileMarkdown = true;
+        },
+        goDelete() {
+            this.showDelete = true;
+        },
+        async submitDelete() {
+            if(this.deleteType){
+                if(this.deleteType == "dataset") {
+                    const res = await api.deleteDataset(this.delete_dataset);
+                    console.log("res",res.data);
+                    if(res.data["error"]) {
+                        this.showToast('error','Error', res.data["error"])
+                    }
+                    if(res.data["success"]) {
+                        this.showToast('success','Success', res.data["error"])
+                        window.location.reload();
+                    }
+                } else if(this.deleteType == "result") {
+                    const res = await api.deleteResult(this.delete_dataset);
+                    console.log("res",res.data);
+                    if(res.data["error"]) {
+                        this.showToast('error','Error', res.data["error"])
+                    }
+                    if(res.data["success"]) {
+                        this.showToast('success','Success', res.data["error"])
+                        window.location.reload();
+                    }
+                }
+            } else {
+                alert("请选择要删除的类型！")
+            }
+            
         }
         
 
@@ -300,7 +369,7 @@ export default {
     border-bottom: 2px solid #d2e8ff;
     position: fixed;
     top: 0;
-    width: 98.5%;
+    width: 100%;
     height: 40px;
     text-align: left;
     justify-content: space-between;
@@ -346,6 +415,7 @@ export default {
     background-color: #FFFFFF !important;
     border: none;
     color:#4a97ea;
+    height: 35px;
 }
 ::v-deep .p-button:hover {
     background-color: #F1F5F9 !important;
