@@ -338,8 +338,8 @@ export default {
                         this.showToast('error','Error', res.data["error"])
                     }
                     if(res.data["success"]) {
-                        this.showToast('success','Success', res.data["error"])
                         window.location.reload();
+                        this.showToast('success','Success', res.data["success"])
                     }
                 } else if(this.deleteType == "result") {
                     const res = await api.deleteResult(this.delete_dataset);
@@ -348,8 +348,8 @@ export default {
                         this.showToast('error','Error', res.data["error"])
                     }
                     if(res.data["success"]) {
-                        this.showToast('success','Success', res.data["error"])
                         window.location.reload();
+                        this.showToast('success','Success', res.data["success"])
                     }
                 }
             } else {

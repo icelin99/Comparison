@@ -528,6 +528,7 @@ async def del_dataset(dataset_name):
     try:
         dataset = await Dataset.get(name=dataset_name)
         await del_dataset_result(dataset)
+        await Dataset.filter(name=dataset_name).delete()
         return {"success": "成功删除dataset和对应的所有result！"}
 
     except DoesNotExist:

@@ -12,7 +12,7 @@
             <Button class="custom-mode-button" @click="changeMode">{{ isEditMode ? '切换为预览模式' : '切换为打分模式' }}</Button>
         </div>
     </div>
-    <div v-if="isShow" style="display: flex; flex-direction: row; width: 100%; max-height: calc(100% - 90px); overflow-y: auto; position:fixed; top: 95px; bottom:40px;">
+    <div v-if="isShow" style="display: flex; flex-direction: row; width: 100%; max-height: calc(100% - 90px); overflow-y: auto; position:fixed; top: 95px; bottom:65px;">
         <div :style="{width: '40%', height: '100%'}">
             <div style="display: flex; flex-direction: column; width: '100%'; height: '100%'; align-items: center;">
                 <div class="image-container" @dblclick="openModal('image', img_path)">
@@ -51,7 +51,7 @@
                 <div class="text-container"><div class="text-text">图片地址</div><div class="image-path" @dblclick="openModal('text', pageInfo.image_path)" >{{pageInfo.image_path}}</div></div>
                 <div class="text-container"><div class="text-text">问题</div><div class="text-border" @dblclick="openModal('text', pageInfo.question)"> {{pageInfo.question}}</div></div>
                 <div class="text-container"><div class="text-text">参考答案</div>
-                <div v-if="!isAnswerEdit" class="text-border" @dblclick="openModal('text', pageInfo[0].question)"> {{ref_answer}}</div>
+                <div v-if="!isAnswerEdit" class="text-border" @dblclick="openModal('text', ref_answer)"> {{ref_answer}}</div>
                 <button v-if="!isAnswerEdit && isEditMode" class="ref_answer_span" @click="handleAnswer">✏️</button>
                 <InputText v-if="isAnswerEdit" class="text-border edit" v-model="editedAnswer" />
                 <button v-if="isAnswerEdit && isEditMode" class="ref_answer_span" @click="handleAnswer">✔️</button>
@@ -107,18 +107,16 @@
         </div>
     </div>
     <div v-if="isShow&&!isModalOpen" class="page-change" style="display: flex; flex-direction: column; width: '100%';">
-        <div class="save-button">
-            <!-- <Button style="margin-right: 20px; background-color: cornflowerblue;" v-if="!saveOneClick" label="Save this page"  @click="saveOnePage"  /> -->
-            <!-- <Button style="margin-right: 20px; background-color: cornflowerblue;" v-if="saveOneClick" label="This page saved ✔️" disabled="true" /> -->
-            <Button style="margin-left: 10px; background-color: cornflowerblue;" v-if="isEditMode && !saveAllClick && currentPage == pageCount" label="Save All"     @click="saveAllPage" />
-            <Button style="margin-left: 10px; background-color: cornflowerblue;" v-if="isEditMode && saveAllClick && currentPage == pageCount" label="All saved ✔️" disabled="true" />
-        </div>
+        
         <div style="display: flex; flex-direction: row; width: '100%'; height: 30px; line-height: 25px; justify-content: center;align-items: center;">
             <Button label="" icon="pi pi-angle-left" iconPos="right" :style="{backgroundColor: leftHover?'rgba(176,196,222,0.5)': 'lightsteelblue',borderColor: 'aliceblue',marginRight:'15px'}"   @click="prevPage" @mouseover="leftHover = true" @mouseleave="leftHover = false" />
             Page {{ currentPage }} of {{ pageCount }}
             <Button label=""  icon="pi pi-angle-right"  :style="{backgroundColor: rightHover? 'rgba(100,149,237,0.5)':'cornflowerblue',borderColor: 'aliceblue'}"   @click="nextPage" @mouseover="rightHover = true" @mouseleave="rightHover = false" />
             <p> 跳转 </p>
             <InputNumber v-model="jumpPage" inputId="minmax-buttons" mode="decimal" :min="1" :max="pageCount" @keyup.enter="jump" autofocus />
+                <Button style="margin-left: 10px; background-color: cornflowerblue;" v-if="isEditMode && !saveAllClick && currentPage == pageCount" label="Save All"     @click="saveAllPage" />
+                <Button style="margin-left: 10px; background-color: cornflowerblue;" v-if="isEditMode && saveAllClick && currentPage == pageCount" label="All saved ✔️" disabled="true" />
+         
         </div>
         
     </div>
@@ -227,6 +225,9 @@ export default {
             this.selectedTag = null;
             console.log("getting new tag list", newVal);
             this.tags = newVal;
+        },
+        pageCount(newVal) {
+            console.log("new page count",newVal)
         }
 
     },
@@ -651,20 +652,24 @@ export default {
             console.log("edit answer", this.isAnswerEdit, this.ref_answer,this.editedAnswer);
             if(this.isAnswerEdit) {
                 if(this.isEditMode) {
-                    // 保存并上传
-                    this.ref_answer = this.editedAnswer;
-                    this.$store.dispatch("updateIsLoading", true);
-                    try {
-                        const res = await api.editAnswer(this.data_info_id, this.editedAnswer);
-                        console.log(res);
-                        if(res.data["error"]) {
-                            this.showToast('error','Error', res.data["error"])
+                    // 如果没做修改，不上传
+                    if(this.editedAnswer !== this.ref_answer) {
+                        // 保存并上传
+                        this.ref_answer = this.editedAnswer;
+                        this.$store.dispatch("updateIsLoading", true);
+                        try {
+                            const res = await api.editAnswer(this.data_info_id, this.editedAnswer);
+                            console.log(res);
+                            if(res.data["error"]) {
+                                this.showToast('error','Error', res.data["error"])
+                            }
+                            this.$store.dispatch("updateIsLoading",false);
                         }
-                        this.$store.dispatch("updateIsLoading",false);
+                        catch(err) {
+                            console.log("修改ref answer",err);
+                        }
                     }
-                    catch(err) {
-                        console.log("修改ref answer",err);
-                    }
+                    
                 }
                 
             } else {
