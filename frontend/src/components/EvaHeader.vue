@@ -1,19 +1,20 @@
 <template>
     <div class="header">MLLM Evaluation - {{ dataset }}
-        <Button icon="pi pi-spin pi-cog" @click="showSidebar = true" class="setting-btn" />
+        <Button icon="pi pi-spin pi-cog" v-if="!selectSubmitted" @click="showSidebar = true" class="setting-btn" />
+        <Button class="clear-btn" v-if="selectSubmitted" @click="clearClick">清空所选项并跳转到主页面</Button>
         <Sidebar v-model:visible="showSidebar" header="功能列表" position="right">
             <div class="sidebar-list">
                 
-                    <div  class="sidebar-item">
-                        <Button @click="clearClick">清空所选项并跳转到主页面</Button></div>
                     <div  class="sidebar-item"><Button @click="fileShow = true">上传JSON文件</Button></div>
                     <div  class="sidebar-item">
                         <Button @click="goDelete" >删除相关信息</Button>
                     </div>
                     <div  class="sidebar-item"><Button @click="saveShow = true">查看打分结果</Button></div>
+                    <div  class="sidebar-item"><Button @click="datasetShow = true">查看dataset信息</Button></div>
                     <div  class="sidebar-item">
                         <Button @click="seeAccuracy" >准确率表格</Button>
                     </div>
+                    <div class="sidebar-item"><Button @click="changeModelName = true">修改模型名称</Button></div>
                     <div  class="sidebar-item">
                         <Button @click="goMarkdown" >Markdown 编译</Button>
                     </div>
@@ -81,6 +82,15 @@
                 <Button label="Submit" @click="fetchSaveData" />
             </div>
         </Dialog>
+        <Dialog v-model:visible="datasetShow" modal header="请选择需要下载的dataset" :style="{width: '50rem'}">
+            <div class="p-fluid">
+                <div>
+                    <div style="font-weight: bold; padding: 0.5em;">Dataset</div>
+                    <Dropdown :options="datasets" optionLabel="name" optionValue="id" v-model="selectedDataset" placeholder="select a dataSet" filter showClear />
+                </div>
+                <Button label="Submit" @click="downloadDatasetInfo" />
+            </div>
+        </Dialog>
         <Dialog v-model:visible="showMarkdown" modal header="Markdown编辑器" :style="{ width: '80rem' }" >
             <MardownEditor />
         </Dialog>
@@ -100,6 +110,23 @@
             <div class="mt-4 flex justify-content-end">
                 <Button label="取消" icon="pi pi-times" class="p-button-text" @click="fileShow = false" />
                 <Button label="提交" icon="pi pi-check" class="p-button-text" @click="submitDelete" />
+            </div>
+        </Dialog>
+        <Dialog v-model:visible="changeModelName" modal header="修改模型名称" :style="{ width: '30rem' }">
+            <div class="p-fluid">
+                <div>
+                    <div style="font-weight: bold; padding: 0.5em;">Dataset</div>
+                    <Dropdown :options="datasets" optionLabel="name" optionValue="id" v-model="selectedDataset" placeholder="select a dataSet" filter showClear @change="onDatasetChange()" />
+                </div>
+                <div>
+                    <div style="font-weight: bold; padding: 0.5em;">Model</div>
+                    <Dropdown v-model="selectedModel" :options="models" optionLabel="name" optionValue="id" placeholder="Select a model"  filter showClear />
+                </div>
+                <div>
+                    <div style="font-weight: bold; padding: 0.5em;">New Model Name</div>
+                    <InputText v-model="newModelName" :style="{width: '27rem'}" placeholder="新名称不要加.jsonl"  />
+                </div>
+                <Button label="Submit" @click="submitModelName" />
             </div>
         </Dialog>
         <Toast ref="toast" />
@@ -136,10 +163,10 @@ export default {
         Message,
         Toast,
         MardownEditor,
-        CodeBlockRenderer
+        CodeBlockRenderer,
     },
     computed: {
-        ...mapGetters(["filterData","alreadySubmit","dataset"])
+        ...mapGetters(["filterData","alreadySubmit","dataset","selectSubmitted"])
     },
     watch: {
     },
@@ -173,6 +200,9 @@ export default {
             showDelete:false,
             delete_dataset: "",
             deleteType: null,
+            datasetShow: false,
+            changeModelName: false,
+            newModelName: "",
         }
     },
     methods: {
@@ -215,14 +245,22 @@ export default {
                 if(this.filePath) {
                     console.log('上传绝对地址:', this.filePath);
                     if(this.pathType) {
-                        const res = await api.uploadFilePath(this.filePath,this.pathType);
-                        console.log("res",res);
-                        if(res.data["success"]) {
-                            window.location.reload();
-                            this.showToast('success','Success',res.data["success"])
-                        } else if(res.data["error"]) {
-                            this.showToast('error','Error', res.data["error"])
+                        this.$store.dispatch('updateIsLoading', true);
+                        try {
+                            const res = await api.uploadFilePath(this.filePath,this.pathType);
+                            console.log("res",res);
+                            if(res.data["success"]) {
+                                window.location.reload();
+                                this.showToast('success','Success',res.data["success"])
+                            } else if(res.data["error"]) {
+                                this.showToast('error','Error', res.data["error"])
+                            }
+                            this.$store.dispatch('updateIsLoading', false);
                         }
+                        catch(e) {
+                            this.showToast('error','Error',e);
+                        }
+                        
                         this.fileShow = false;
                         this.pathType = null;
                         this.filePath = null;
@@ -283,7 +321,7 @@ export default {
                 const res = await api.fetchSaveData(this.selectedDataset,this.selectedModel,this.selectedStandard);
                 console.log("response",res.data,res.headers);
                 if(res.data.error) {
-                    alert(res.data.error)
+                    this.showToast('error','Error',res.data.error);
                 } else {
                     const { file_content, file_name } = res.data;
                     const type = 'application/json';
@@ -301,10 +339,34 @@ export default {
                     this.selectedDataset = null;
                     this.selectedModel = null;
                     this.selectedStandard = null;
-                }
-                
+                }       
             }catch (error) {
-                console.error('Error fetching save data:', error)
+                this.showToast('error', 'Error',error);
+            }
+        },
+        async downloadDatasetInfo() {
+            try {
+                const res = await api.fetchDatasetInfo(this.selectedDataset);
+                if(res.data.error) {
+                    this.showToast('error','Error',res.data.error);
+                } else {
+                    const { file_content, file_name } = res.data;
+                    const type = 'application/json';
+
+                    const blob = new Blob([file_content], { type });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = file_name;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    window.URL.revokeObjectURL(url);
+                }
+                this.selectedDataset = null;
+            }
+            catch(error) {
+                this.showToast('error', 'Error',error);
             }
         },
         validatePath() {
@@ -318,7 +380,7 @@ export default {
             })
         },
         showToast(severity,summary,detail){
-            this.$refs.toast.add({ severity: severity, summary: summary, detail: detail, life: 2000 })
+            this.$refs.toast.add({ severity: severity, summary: summary, detail: detail, life: 3000 })
         },
         goMarkdown() {
             this.showMarkdown = true;
@@ -355,7 +417,29 @@ export default {
             } else {
                 alert("请选择要删除的类型！")
             }
-            
+        },
+        async submitModelName() {
+            if(this.newModelName && this.selectedDataset && this.selectedModel) {
+                try {
+                    const res = await api.changeModelName(this.selectedDataset,this.selectedModel,this.newModelName);
+                    console.log("res",res.data);
+                    if(res.data["error"]) {
+                        this.showToast('error','Error', res.data["error"])
+                    }
+                    if(res.data["success"]) {
+                        window.location.reload();
+                        this.showToast('success','Success', res.data["success"])
+                    }
+                }
+                catch(e) {
+                    this.showToast('error','Error', e)
+                }
+                this.selectedDataset = null;
+                this.selectedModel = null;
+                this.newModelName = null;
+            } else {
+                this.showToast('error','Error',"请输入新模型名称！")
+            }
         }
         
 
@@ -398,6 +482,12 @@ export default {
 }
 ::v-deep .setting-btn {
     width: 4rem;
+    background-color: #4a97ea;
+    color:aliceblue;
+}
+::v-deep .clear-btn {
+    width: 12rem;
+    font-size: 13px;
     background-color: #4a97ea;
     color:aliceblue;
 }

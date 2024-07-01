@@ -60,3 +60,8 @@ class AccuracyRequest(BaseModel):
     datasetID: int
     modelIDs: List[int]
     standard: int
+
+class ChangeModelName(BaseModel):
+    datasetID: int
+    modelID: int
+    modelname: str

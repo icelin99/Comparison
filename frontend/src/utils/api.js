@@ -104,6 +104,16 @@ export default {
             responseType: 'blob'  // 设置响应类型为 blob
         })
     },
+    fetchDatasetInfo(datasetID) {
+        console.log("dataset id",datasetID)
+        return axios.get(API_URL + 'fetch/dataset/', {
+            params: {
+                datasetID: datasetID
+            }
+        }, {
+            responseType: 'blob'  // 设置响应类型为 blob
+        })
+    },
     getFileURL(filename) {
         return `${API_URL}download/${filename}/`
     },
@@ -130,6 +140,13 @@ export default {
             modelIDs: modelIDs,
             standard: standard
             
+        })
+    },
+    changeModelName(datasetID,modelID,name) {
+        return axios.post(API_URL+ 'edit-modelname/',{
+            datasetID: datasetID,
+            modelID: modelID,
+            modelname: name
         })
     }
 }

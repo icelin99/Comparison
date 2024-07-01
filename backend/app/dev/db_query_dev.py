@@ -339,7 +339,7 @@ async def update_result_by_path(result_path):
                     await add_result(dataset, file_name,result_path)
                     return {"success": "添加result结果成功！"}
                 except Exception as e:
-                    return {"error": e}
+                    return {"error": str(e)}
             except DoesNotExist:
                 return {"error": "dataset 不存在"}
         else:
@@ -412,6 +412,30 @@ async def fetch_save_file(datasetID, modelID,standard):
     file_content = json.dumps(data, ensure_ascii=False).encode('utf-8')
    
     return JSONResponse(content={"file_content": file_content.decode('utf-8'), "file_name": file_name})
+
+async def fetch_save_dataset(datasetID):
+    dataset = await Dataset.get(id=datasetID)
+    data_infos = await DataInfo.filter(dataset_id = datasetID).prefetch_related('categories', 'tags').values(
+        'image_path', 'categories__name', 'tags__name', 'question', 'ref_answer'
+    )
+    dataset_info = []
+    for item in data_infos:
+        print("categories",item)
+        entry = {
+            "image_path": item['image_path'],
+            "question": item['question'],
+            "ref_answer": item['ref_answer'],
+            "tag": item['categories__name'],
+            "category": item['tags__name']
+        }
+        dataset_info.append(entry)
+    
+    file_name = f"{dataset.name}_dataset_info.json"
+    file_content = json.dumps(dataset_info, ensure_ascii=False).encode('utf-8')
+    return JSONResponse(content={"file_content": file_content.decode('utf-8'), "file_name": file_name})
+   
+
+
 
 def check_dataset_info(dataset_dir):
     required_keys = {'filename', 'question', 'category', 'tag'}
@@ -629,6 +653,7 @@ async def del_result(result_path):
                 model = await ModelName.get(name=model_name, dataset_id = dataset.id)
                 try:
                     await Result.filter(dataset=dataset, model=model).delete()
+                    await ModelName.filter(dataset=dataset, name=model_name).delete()
                     return {"success": "删除result结果成功！"}
                 except Exception as e:
                     return {"error": e}
@@ -636,3 +661,19 @@ async def del_result(result_path):
                 return {"error": "model 不存在"}
         except DoesNotExist:
             return {"error": "dataset 不存在"}
+        
+async def change_modelname(datasetID, modelID, modelname):
+    try:
+        dataset = await Dataset.get(id=datasetID)
+        try:
+            model = await ModelName.get(dataset = dataset, id=modelID)
+            try:
+                model.name = modelname
+                await model.save()
+                return {"success": "更改模型名称成功"}
+            except DoesNotExist:
+                return {"error": "更改模型名称失败"}
+        except DoesNotExist:
+            return {"error": "model 不存在"}
+    except DoesNotExist:
+        return {"error": "dataset 不存在"}

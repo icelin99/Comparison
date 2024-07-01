@@ -60,3 +60,8 @@ class DeleteDataset(BaseModel):
 
 class DeleteResult(BaseModel):
     path: str
+
+class ChangeModelName(BaseModel):
+    datasetID: int
+    modelID: int
+    modelname: str
