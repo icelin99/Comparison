@@ -145,7 +145,7 @@ async def add_new_category_tag_datainfo(folder_path,data, dataset):
     image_path = os.path.join(folder_path,"images",filename)
     normalized_question = remove_end_point(question)
     ref__ = ""
-    if(data["ref_answer"]):
+    if("ref_answer" in data and data["ref_answer"]):
         ref__ = str(data["ref_answer"])
     # create DataInfo item
     try:

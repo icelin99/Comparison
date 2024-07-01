@@ -302,8 +302,12 @@ async def update_dataset_by_path(dataset_dir):
         if check_file == "OK":
             try:
                 dataset = await Dataset.get(name=dir_name)
-                await update_datainfo_category_tag(dataset_dir,dataset)
-                return {"success": "成功更新dataset和datainfo！"}
+                try:
+                    await update_datainfo_category_tag(dataset_dir,dir_name,dataset)
+                    return {"success": "成功更新dataset和datainfo！"}
+                except Exception as e:
+                    del_dataset(dir_name)
+                    return {"error": str(e)}
             except DoesNotExist:
                 print("data set 新增")
                 dataset = await Dataset.create(name=dir_name)
@@ -396,7 +400,7 @@ async def fetch_save_file(datasetID, modelID,standard):
         entry = {
             "filename": result.data_info.image_path,
             "question": result.data_info.question,
-            "category": categories,
+            "category": ", ".join(categories),
             "ref_answer": result.data_info.ref_answer,
             "answer": result.answer,
             "reason": result.reason,

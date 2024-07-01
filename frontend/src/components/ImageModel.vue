@@ -8,6 +8,9 @@
             <Button  icon="pi pi-times" class="p-button-clear custom-clear-button" @click="clearData" />
             <Button icon="pi pi-search" class="p-button-query custom-query-button" @click="queryData" />
         </div>
+        <div>
+            <Button class="custom-mode-button" @click="changeMode">{{ isEditMode ? '切换为预览模式' : '切换为打分模式' }}</Button>
+        </div>
     </div>
     <div v-if="isShow" style="display: flex; flex-direction: row; width: 100%; max-height: calc(100% - 90px); overflow-y: auto; position:fixed; top: 95px; bottom:40px;">
         <div :style="{width: '40%', height: '100%'}">
@@ -49,9 +52,9 @@
                 <div class="text-container"><div class="text-text">问题</div><div class="text-border" @dblclick="openModal('text', pageInfo.question)"> {{pageInfo.question}}</div></div>
                 <div class="text-container"><div class="text-text">参考答案</div>
                 <div v-if="!isAnswerEdit" class="text-border" @dblclick="openModal('text', pageInfo[0].question)"> {{ref_answer}}</div>
-                <button v-if="!isAnswerEdit" class="ref_answer_span" @click="handleAnswer">✏️</button>
+                <button v-if="!isAnswerEdit && isEditMode" class="ref_answer_span" @click="handleAnswer">✏️</button>
                 <InputText v-if="isAnswerEdit" class="text-border edit" v-model="editedAnswer" />
-                <button v-if="isAnswerEdit" class="ref_answer_span" @click="handleAnswer">✔️</button>
+                <button v-if="isAnswerEdit && isEditMode" class="ref_answer_span" @click="handleAnswer">✔️</button>
                 </div>
             </div>
         </div>
@@ -107,14 +110,14 @@
         <div class="save-button">
             <!-- <Button style="margin-right: 20px; background-color: cornflowerblue;" v-if="!saveOneClick" label="Save this page"  @click="saveOnePage"  /> -->
             <!-- <Button style="margin-right: 20px; background-color: cornflowerblue;" v-if="saveOneClick" label="This page saved ✔️" disabled="true" /> -->
-            <Button style="margin-left: 10px; background-color: cornflowerblue;" v-if="!saveAllClick && currentPage == pageCount" label="Save All"     @click="saveAllPage" />
-            <Button style="margin-left: 10px; background-color: cornflowerblue;" v-if="saveAllClick && currentPage == pageCount" label="All saved ✔️" disabled="true" />
+            <Button style="margin-left: 10px; background-color: cornflowerblue;" v-if="isEditMode && !saveAllClick && currentPage == pageCount" label="Save All"     @click="saveAllPage" />
+            <Button style="margin-left: 10px; background-color: cornflowerblue;" v-if="isEditMode && saveAllClick && currentPage == pageCount" label="All saved ✔️" disabled="true" />
         </div>
         <div style="display: flex; flex-direction: row; width: '100%'; height: 30px; line-height: 25px; justify-content: center;align-items: center;">
             <Button label="" icon="pi pi-angle-left" iconPos="right" :style="{backgroundColor: leftHover?'rgba(176,196,222,0.5)': 'lightsteelblue',borderColor: 'aliceblue',marginRight:'15px'}"   @click="prevPage" @mouseover="leftHover = true" @mouseleave="leftHover = false" />
             Page {{ currentPage }} of {{ pageCount }}
             <Button label=""  icon="pi pi-angle-right"  :style="{backgroundColor: rightHover? 'rgba(100,149,237,0.5)':'cornflowerblue',borderColor: 'aliceblue'}"   @click="nextPage" @mouseover="rightHover = true" @mouseleave="rightHover = false" />
-            <p> jump to a specific page</p>
+            <p> 跳转 </p>
             <InputNumber v-model="jumpPage" inputId="minmax-buttons" mode="decimal" :min="1" :max="pageCount" @keyup.enter="jump" autofocus />
         </div>
         
@@ -181,6 +184,10 @@ export default {
     },
     mounted() {
         this.$store.dispatch('updateIsLoading', false); // 挂载完成，隐藏loading
+        window.addEventListener("keydown",this.handleKeydown);
+    },
+    beforeDestroy() {
+        window.removeEventListener("keydown",this.handleKeydown);
     },
     watch: {
         selectSubmitted(newVal) {
@@ -281,6 +288,7 @@ export default {
             editedAnswer: "",
             isAnswerEdit: false,
             ref_answer: "",
+            isEditMode: false,
         }
     },
     methods: {
@@ -414,6 +422,13 @@ export default {
             });
             return this.renderedContent;
         },
+        handleKeydown(event) {
+            if (event.key === "ArrowLeft") {
+                this.prevPage();
+            } else if(event.key == "ArrowRight") {
+                this.nextPage();
+            }
+        },
         async nextPage() {
             // 获取下一页数据
             const page = this.currentPage + 1;
@@ -473,7 +488,7 @@ export default {
         },
         async saveAndGet(nextPage,isJump=false) {
             const model_l = this.pageInfo.modelList;
-            if(this.pageEdit && this.pageEdit.length && this.pageEdit.length > 0) {
+            if(this.isEditMode && this.pageEdit && this.pageEdit.length && this.pageEdit.length > 0) {
                 // 保存本页数据
                 const modelList = this.pageEdit.map(index => ({
                     "modelID": model_l[index].model_id,
@@ -635,20 +650,23 @@ export default {
         async handleAnswer() {
             console.log("edit answer", this.isAnswerEdit, this.ref_answer,this.editedAnswer);
             if(this.isAnswerEdit) {
-                // 保存并上传
-                this.ref_answer = this.editedAnswer;
-                this.$store.dispatch("updateIsLoading", true);
-                try {
-                    const res = await api.editAnswer(this.data_info_id, this.editedAnswer);
-                    console.log(res);
-                    if(res.data["error"]) {
-                        this.showToast('error','Error', res.data["error"])
+                if(this.isEditMode) {
+                    // 保存并上传
+                    this.ref_answer = this.editedAnswer;
+                    this.$store.dispatch("updateIsLoading", true);
+                    try {
+                        const res = await api.editAnswer(this.data_info_id, this.editedAnswer);
+                        console.log(res);
+                        if(res.data["error"]) {
+                            this.showToast('error','Error', res.data["error"])
+                        }
+                        this.$store.dispatch("updateIsLoading",false);
                     }
-                    this.$store.dispatch("updateIsLoading",false);
+                    catch(err) {
+                        console.log("修改ref answer",err);
+                    }
                 }
-                catch(err) {
-                    console.log("修改ref answer",err);
-                }
+                
             } else {
                 this.editedAnswer = this.ref_answer
             }
@@ -658,7 +676,9 @@ export default {
         showToast(severity,summary,detail){
             this.$refs.toast.add({ severity: severity, summary: summary, detail: detail, life: 2000 })
         },
-
+        changeMode() {
+            this.isEditMode = !this.isEditMode;
+        }
     }
 }
 </script>
@@ -921,6 +941,16 @@ export default {
   
 .custom-query-button:hover {
     background-color: #f1f8ff; 
+}
+
+.custom-mode-button {
+    background-color: #FFFACD;
+    border-color: #fefbe0;
+    margin-right: 10px;
+    color: rgb(84, 84, 84);
+}
+.custom-mode-button:hover {
+    background-color: #fffdeb;
 }
 .ref_answer_span {
     border-radius: 50%;
