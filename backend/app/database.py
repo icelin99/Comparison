@@ -179,7 +179,6 @@ async def del_dataset_result(dataset):
     data_info_ids = await DataInfo.filter(dataset=dataset).values_list('id', flat=True)
     # 删除所有与这些DataInfo记录关联的Result记录
     await Result.filter(data_info_id__in=data_info_ids).delete()
-    await DataInfo.filter(dataset=dataset).delete()
     # 删除所有与该dataset相关的DataInfo记录
     await DataInfo.filter(dataset=dataset).delete()
 
@@ -188,7 +187,6 @@ async def update_datainfo_category_tag(folder_path,dataset_name,dataset):
     """
     此函数只有在dataset更新时才会调用，删掉原datainfo和对应的result，重新加result和score
     """
-    del_dataset_result(dataset)
     
     json_file_path = os.path.join(folder_path,"json_files","dataset_info.json")
     if os.path.exists(json_file_path):
@@ -196,14 +194,28 @@ async def update_datainfo_category_tag(folder_path,dataset_name,dataset):
         with open(json_file_path, 'r') as json_file:
             data_list = json.load(json_file)
             for index, data in enumerate(data_list):
-                await add_new_category_tag_datainfo(folder_path,data,dataset)
+                try:
+                    await add_new_category_tag_datainfo(folder_path,data,dataset)
+                except Exception as e:
+                    return {"error": str(e)}
     
     # 新增result
     result_dir = os.path.join('/mnt/afs/user/chenzixuan/eval_tool_info/results',dataset_name)
-    await process_results(result_dir)
+    for result_name in os.listdir(result_dir):
+        result_path = os.path.join(result_dir,result_name)
+        try:
+            await add_result(dataset,result_name,result_path)
+        except Exception as e:
+            return {"error": "add_result失败"}
     # 新增 score
     score_dir = os.path.join('/mnt/afs/user/chenzixuan/eval_tool_info/results_score',dataset_name)
-    await process_results_score(score_dir)
+    for model_name in os.listdir(score_dir):
+        model_path = os.path.join(score_dir, model_name)
+        try: 
+            await add_score(dataset,model_name,model_path)
+        except Exception as e:
+            return {"error": "add_score失败"}
+    return {"success": "chenggong"}
 
 
 async def update_datainfo(folder_path, data_info, data,dataset):
@@ -275,9 +287,9 @@ async def add_result(dataset, result_name, result_path):
     # folder_path, folder_name
     if result_name.endswith('.json') or result_name.endswith('.jsonl'):
         model_name, _ = os.path.splitext(result_name)
+        print("add result",model_name)
         try:
             model,_ = await ModelName.get_or_create(name=model_name, dataset=dataset)
-            print("find model",model_name)
             with open(result_path, 'r') as json_file:
                 # 这里json和jsonl格式可能是混乱的
                 try:
@@ -286,6 +298,7 @@ async def add_result(dataset, result_name, result_path):
                     # 如果无法解析为 JSON，则将其视为 JSONL 文件
                     json_file.seek(0)
                     data_list = [json.loads(line) for line in json_file]
+                print("len data",len(data_list))
                 # data_list = json.load(json_file)
                 for data in data_list:
                     filename = data["filename"]
@@ -306,12 +319,15 @@ async def add_result(dataset, result_name, result_path):
                             if candidate.question == normalized_question:
                                 data_info = candidate
                                 break
-                    assert data_info, "Error, data_info not found"
+                    # assert data_info, "Error, data_info not found"
+                    if not data_info:
+                        return {"error": f"没找到相应的filename：{filename} ，question：{normalized_question}。"}
                     print(f"add result, model {model_name}, data_info {data_info.id}")
                     result,_ = await Result.get_or_create(dataset=dataset, model=model, data_info=data_info,answer=answer)
+            return {"success": "结果已成功添加"}
         
         except DoesNotExist:
-                pass
+                return {"error": "模型没找到"}
 
 
 async def process_results_score(directory_path):
@@ -368,8 +384,11 @@ async def add_score(dataset, model_name, model_path):
                         for candidate in candidates:
                             if candidate.question == normalized_question:
                                 data_info = candidate
-                    assert data_info, f"Error, data_info not found, {filename}, {normalized_question}"
-                    print(filename,normalized_question)
+                                break  # 找到匹配的 data_info 后跳出循环
+                    # assert data_info, f"Error, data_info not found, {filename}, {normalized_question}"
+                    if not data_info:
+                        print(f"data_info not found, {filename}, {normalized_question}")
+                        continue
                     try:
                         result = await Result.get(dataset=dataset,model=model,data_info = data_info)
                         print(result.id)

@@ -51,10 +51,11 @@ class EditAnswerRequest(BaseModel):
     ref_answer: str
 
 class DeleteDataset(BaseModel):
-    dataset_name: str
+    datasetID: int
 
 class DeleteResult(BaseModel):
-    path: str
+    datasetID: int
+    modelID: int
 
 class AccuracyRequest(BaseModel):
     datasetID: int

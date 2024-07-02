@@ -158,15 +158,15 @@ async def edit_answer(request: EditAnswerRequest):
     ans = await save_ref_answer(request.datainfoID, request.ref_answer)
     return ans
 
-@router.post("/delete-result/")
-async def delete_result(request: DeleteResult):
-    res = await del_result(request.path)
+@router.post("/delete-dataset/")
+async def delete_dataset(request: DeleteDataset):
+    res = await del_dataset(request.datasetID)
     print(res)
     return res
 
-@router.post("/delete-dataset/")
-async def delete_dataset(request: DeleteDataset):
-    res = await del_dataset(request.dataset_name)
+@router.post("/delete-result/")
+async def delete_result(request: DeleteResult):
+    res = await del_result(request.datasetID, request.modelID)
     print(res)
     return res
 

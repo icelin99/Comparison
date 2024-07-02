@@ -5,7 +5,7 @@
         <Sidebar v-model:visible="showSidebar" header="功能列表" position="right">
             <div class="sidebar-list">
                     <div class="sidebar-item"><Button  @click="clearClick">跳转到主页面</Button></div>
-                    <div  class="sidebar-item"><Button @click="fileShow = true">上传JSON文件</Button></div>
+                    <div  class="sidebar-item"><Button @click="fileShow = true">上传文件</Button></div>
                     <div  class="sidebar-item">
                         <Button @click="goDelete" >删除相关信息</Button>
                     </div>
@@ -24,7 +24,7 @@
 
             </div>
         </Sidebar>
-        <Dialog v-model:visible="fileShow" modal header="上传json文件" :style="{ width: '25rem' }">
+        <Dialog v-model:visible="fileShow" modal header="上传文件" :style="{ width: '25rem' }">
            
             <span class="p-text-secondary block mb-5">请选择上传形式</span>
             <div class="mt-3 mb-3 flex align-items-center">
@@ -98,15 +98,19 @@
             <CodeBlockRenderer/>
         </Dialog>
         <Dialog v-model:visible="showDelete" modal header="输入待删除的dataset名字或者result地址" :style="{ width: '30rem' }" >
-            <InputText v-model="delete_dataset" :style="{width: '20rem'}"   />
-            <p v-if="deleteType == 'dataset'">请输入dataset名字</p>
-            <p v-if="deleteType == 'result'">请输入result的绝对地址</p>
             <div class="mt-3 mb-3">
                 <RadioButton v-model="deleteType" inputId="type8" name="deleteType" value="dataset" />
                 <label for="ingredient1" class="ml-2">dataset</label>
                 <RadioButton v-model="deleteType" inputId="type9" name="deleteType" value="result" />
                 <label for="ingredient1" class="ml-2">model result</label>
             </div>
+            <p>Dataset</p>
+            <Dropdown :options="datasets" optionLabel="name" optionValue="id" v-model="delete_dataset" :style="{width: '20rem'}" @change="onDatasetChangeDelete()"   />
+            <p v-if="deleteType == 'result'"> Model Name</p>
+            <Dropdown :options="models" optionLabel="name" optionValue="id" v-model="delete_modelname" v-if="deleteType == 'result'" :style="{width: '20rem'}"   />
+            <p v-if="deleteType == 'dataset'">请选择dataset</p>
+            <p v-if="deleteType == 'result'">请选择dataset和model</p>
+           
             <div class="mt-4 flex justify-content-end">
                 <Button label="取消" icon="pi pi-times" class="p-button-text" @click="fileShow = false" />
                 <Button label="提交" icon="pi pi-check" class="p-button-text" @click="submitDelete" />
@@ -201,6 +205,7 @@ export default {
             compileMarkdown: false,
             showDelete:false,
             delete_dataset: "",
+            delete_modelname: "",
             deleteType: null,
             datasetShow: false,
             changeModelName: false,
@@ -246,9 +251,9 @@ export default {
             } else {
                 if(this.filePath) {
                     console.log('上传绝对地址:', this.filePath);
-                    if(this.pathType) {
-                        this.$store.dispatch('updateIsLoading', true);
+                    if(this.pathType) {    
                         try {
+                            this.$store.dispatch('updateIsLoading', true);
                             const res = await api.uploadFilePath(this.filePath,this.pathType);
                             console.log("res",res);
                             if(res.data["success"]) {
@@ -310,6 +315,13 @@ export default {
                 this.models = [];
             } else {
                 this.getModelList(this.selectedDataset);
+            }
+        },
+        onDatasetChangeDelete() {
+            if(!this.delete_dataset) {
+                this.models = [];
+            } else {
+                this.getModelList(this.delete_dataset);
             }
         },
         onModelChange() {
@@ -421,24 +433,37 @@ export default {
         async submitDelete() {
             if(this.deleteType){
                 if(this.deleteType == "dataset") {
-                    const res = await api.deleteDataset(this.delete_dataset);
-                    console.log("res",res.data);
-                    if(res.data["error"]) {
-                        this.showToast('error','Error', res.data["error"])
+                    if(this.delete_dataset) {
+                        this.$store.dispatch('updateIsLoading', true);
+                        const res = await api.deleteDataset(this.delete_dataset);
+                        console.log("res",res.data);
+                        if(res.data["error"]) {
+                            this.showToast('error','Error', res.data["error"])
+                        }
+                        if(res.data["success"]) {
+                            window.location.reload();
+                            this.showToast('success','Success', res.data["success"])
+                        }
+                        this.$store.dispatch('updateIsLoading', false);
+                    } else {
+                        this.showToast('error','Error', "请输出要删除的dataset")
                     }
-                    if(res.data["success"]) {
-                        window.location.reload();
-                        this.showToast('success','Success', res.data["success"])
-                    }
+                    
                 } else if(this.deleteType == "result") {
-                    const res = await api.deleteResult(this.delete_dataset);
-                    console.log("res",res.data);
-                    if(res.data["error"]) {
-                        this.showToast('error','Error', res.data["error"])
-                    }
-                    if(res.data["success"]) {
-                        window.location.reload();
-                        this.showToast('success','Success', res.data["success"])
+                    if(this.delete_dataset & this.delete_modelname) {
+                        this.$store.dispatch('updateIsLoading', true);
+                        const res = await api.deleteResult(this.delete_dataset,this.delete_modelname);
+                        console.log("res",res.data);
+                        if(res.data["error"]) {
+                            this.showToast('error','Error', res.data["error"])
+                        }
+                        if(res.data["success"]) {
+                            window.location.reload();
+                            this.showToast('success','Success', res.data["success"])
+                        }
+                        this.$store.dispatch('updateIsLoading', false);
+                    } else {
+                        this.showToast('error','Error', "请输出要删除的dataset和model")
                     }
                 }
             } else {

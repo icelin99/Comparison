@@ -56,6 +56,7 @@ export default createStore({
             state.alreadySubmit = alreadySubmit;
         },
         set_loading(state, loading) {
+            console.log("loading",loading);
             state.isLoading = loading;
         },
         set_dataset(state,dataset) {

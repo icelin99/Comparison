@@ -304,27 +304,39 @@ async def update_dataset_by_path(dataset_dir):
         if check_file == "OK":
             try:
                 dataset = await Dataset.get(name=dir_name)
+                print("存在哦")
+                # 有dataset则删除原来的信息
                 try:
-                    await update_datainfo_category_tag(dataset_dir,dir_name,dataset)
-                    return {"success": "成功更新dataset和datainfo！"}
+                    del_res = await del_dataset(dataset.id)
+                    print(del_res,"del res")
+                    if "error" in del_res:
+                        return del_res
+                    # 删除后再重新新增
+                    dataset = await Dataset.create(name=dir_name)
+                    add_res = await update_datainfo_category_tag(dataset_dir,dir_name,dataset)
+                    print(add_res, "add res")
+                    if "error" in add_res:
+                        return add_res
+                    return {"success": "成功新建dataset和datainfo！"}
                 except Exception as e:
-                    del_dataset(dir_name)
                     return {"error": str(e)}
             except DoesNotExist:
                 print("data set 新增")
                 dataset = await Dataset.create(name=dir_name)
-                json_file_path = os.path.join(dataset_dir,"json_files","dataset_info.json")
-                if os.path.exists(json_file_path):
-                    with open(json_file_path, 'r') as json_file:
-                        data_list = json.load(json_file)
-                        for data in data_list:
-                            await add_new_category_tag_datainfo(dataset_dir,data,dataset)
+                try:
+                    add_res = await update_datainfo_category_tag(dataset_dir,dir_name,dataset)
+                    print("add res",add_res)
+                    if "error" in add_res:
+                        return add_res
                     return {"success": "成功新建dataset和datainfo！"}
+                except Exception as e:
+                    return {"error": str(e)}
         else:
             return {"error": check_file}
        
     else:
         return {"error": "路径不存在"}
+
 
 async def update_result_by_path(result_path):
     # 检查地址是否存在
@@ -338,8 +350,10 @@ async def update_result_by_path(result_path):
             try:
                 dataset = await Dataset.get(name=dataset_name)
                 try:
-                    await add_result(dataset, file_name,result_path)
-                    return {"success": "添加result结果成功！"}
+                    result = await add_result(dataset, file_name,result_path)
+                    if "error" in result:
+                        return result  # 返回错误信息
+                    return {"success": "添加 result 结果成功！"}
                 except Exception as e:
                     return {"error": str(e)}
             except DoesNotExist:
@@ -655,37 +669,29 @@ async def get_accuracy_table(datasetIDs, modelIDs, standard):
 
 
 
-async def del_dataset(dataset_name):
-    print(dataset_name)
+async def del_dataset(datasetID):
+    print("delete ",datasetID)
     try:
-        dataset = await Dataset.get(name=dataset_name)
-        print(dataset.id)
-        await del_dataset_result(dataset)
-        await Dataset.filter(name=dataset_name).delete()
-        return {"success": "成功删除dataset和对应的所有result！"}
+        dataset = await Dataset.get(id=datasetID)
+        try:
+            await del_dataset_result(dataset)
+            await Dataset.filter(id=datasetID).delete()
+            return {"success": "成功删除dataset和对应的所有result！"}
+        except Exception as e:
+            return {"error": "删除dataset失败"}
 
     except DoesNotExist:
         return {"error":"dataset不存在"}
 
-async def del_result(result_path):
-    if os.path.exists(result_path):
-        file_name = os.path.basename(result_path)
-        dataset_name = os.path.basename(os.path.dirname(result_path))
-        model_name = file_name.replace(".jsonl","").replace(".json","")
-        try:
-            dataset = await Dataset.get(name=dataset_name)
-            try:
-                model = await ModelName.get(name=model_name, dataset_id = dataset.id)
-                try:
-                    await Result.filter(dataset=dataset, model=model).delete()
-                    await ModelName.filter(dataset=dataset, name=model_name).delete()
-                    return {"success": "删除result结果成功！"}
-                except Exception as e:
-                    return {"error": e}
-            except DoesNotExist:
-                return {"error": "model 不存在"}
-        except DoesNotExist:
-            return {"error": "dataset 不存在"}
+async def del_result(datasetID, modelID):
+    dataset = await Dataset.get(id=datasetID)
+    model = await ModelName.get(id=modelID, dataset = dataset)
+    try:
+        await Result.filter(dataset=dataset, model=model).delete()
+        await ModelName.filter(dataset=dataset, id=modelID).delete()
+        return {"success": "删除result结果成功！"}
+    except Exception as e:
+        return {"error": e}
         
 async def change_modelname(datasetID, modelID, modelname):
     try:

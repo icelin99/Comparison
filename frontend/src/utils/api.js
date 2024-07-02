@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_URL = 'http://101.230.144.192:10069/api/'
+const API_URL = 'http://localhost:8003/'
 // 'http://localhost:8003/'
 // 'http://101.230.144.192:10069/api/'
 
@@ -124,15 +124,16 @@ export default {
             ref_answer: answer
         })
     },
-    deleteDataset(dataset_name) {
+    deleteDataset(datasetID) {
         return axios.post(`${API_URL}delete-dataset/`, {
-                dataset_name: dataset_name
+                datasetID: datasetID
             
         })
     },
-    deleteResult(path) {
+    deleteResult(datasetID, modelID) {
         return axios.post(`${API_URL}delete-result/`, {
-            path: path
+            datasetID: datasetID,
+            modelID: modelID,
         })
     },
     getAccuracy(datasetID, modelIDs,standard) {
