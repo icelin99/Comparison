@@ -7,6 +7,9 @@ from typing import List
 import base64
 import os
 import json
+from io import BytesIO
+import zipfile
+from urllib.parse import quote
 
 
 def get_image_as_base64(file_path):
@@ -380,42 +383,67 @@ async def update_score_by_path(score_path):
     else:
         return {"error": "路径不存在"}
 
-async def fetch_save_file(datasetID, modelID,standard):
+async def fetch_save_file(datasetID, modelIDs,standard):
 
     dataset = await Dataset.get(id=datasetID)
-    model = await ModelName.get(id=modelID)
     standard_model = await Standard.filter(value=standard).first()
-    results = await Result.filter(
-            dataset_id=datasetID,
-            model_id=modelID,
-            standard=standard
-        ).prefetch_related('data_info', 'data_info__categories')
-    if not results:
-        return "empty"
-    data = []
-    for result in results:
-        categories = [category.name for category in await result.data_info.categories.all()]
-        entry = {
-            "filename": result.data_info.image_path,
-            "question": result.data_info.question,
-            "category": ", ".join(categories),
-            "ref_answer": result.data_info.ref_answer,
-            "answer": result.answer,
-            "reason": result.reason,
-            "score": result.score_3 if standard == 3 else result.score_5 if standard == 5 else result.score_10
-        }
-        data.append(entry)
-    
-    file_name = f"results_{dataset.name}_{model.name}_{standard_model.name}.json"
-    file_content = json.dumps(data, ensure_ascii=False).encode('utf-8')
-   
-    return JSONResponse(content={"file_content": file_content.decode('utf-8'), "file_name": file_name})
+
+    zip_buffer = BytesIO()
+    all_empty = True
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for modelID in modelIDs:
+            model = await ModelName.get(id=modelID)
+            results = await Result.filter(
+                dataset_id=datasetID,
+                model_id=modelID,
+                standard=standard
+            ).prefetch_related('data_info', 'data_info__categories')
+
+            if not results:
+                print(f"No results found for modelID: {modelID}")
+                continue  # 跳过这个 modelID
+            all_empty = False
+            data = []
+            for result in results:
+                categories = [category.name for category in await result.data_info.categories.all()]
+                entry = {
+                    "filename": result.data_info.image_path,
+                    "question": result.data_info.question,
+                    "category": ", ".join(categories),
+                    "ref_answer": result.data_info.ref_answer,
+                    "answer": result.answer,
+                    "reason": result.reason,
+                    "score": result.score_3 if standard == 3 else result.score_5 if standard == 5 else result.score_10
+                }
+                data.append(entry)
+            
+            file_name = f"results_{dataset.name}_{model.name}_{standard_model.name}.json"
+            try:
+                file_content = json.dumps(data, ensure_ascii=False).encode('utf-8')
+                zip_file.writestr(file_name, file_content)
+                print(f"JSON file created: {file_name}")
+            except Exception as e:
+                print(f"Error creating JSON file for modelID {modelID}: {e}")
+    if all_empty:
+        print("return empty")
+        return JSONResponse(content={"error": "所选的参数没有数据可以读取"})
+
+    zip_buffer.seek(0)
+    zip_name = quote(f'result_{dataset.name}.zip')
+    print(zip_name)
+    headers = {
+        'Content-Disposition': f'attachment; filename="{zip_name}"'
+    }
+    return StreamingResponse(zip_buffer, media_type="application/x-zip-compressed", headers=headers)
 
 async def fetch_save_dataset(datasetID):
     dataset = await Dataset.get(id=datasetID)
     data_infos = await DataInfo.filter(dataset_id = datasetID).prefetch_related('categories', 'tags').values(
         'image_path', 'categories__name', 'tags__name', 'question', 'ref_answer'
     )
+    if not data_infos:
+        return JSONResponse(content={"error": "所选的参数没有数据可以读取"})
     dataset_info = []
     for item in data_infos:
         print("categories",item)

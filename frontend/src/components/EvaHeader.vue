@@ -73,7 +73,7 @@
                 </div>
                 <div>
                     <div style="font-weight: bold; padding: 0.5em;">Model</div>
-                    <Dropdown v-model="selectedModel" :options="models" optionLabel="name" optionValue="id" placeholder="Select a model"  filter showClear @change="onModelChange()"/>
+                    <MultiSelect v-model="selectedModel" :options="models" optionLabel="name" optionValue="id" placeholder="Select a model"  filter showClear @change="onModelChange()"/>
                 </div>
                 <div>
                     <div style="font-weight: bold; padding: 0.5em;">Standard</div>
@@ -143,6 +143,7 @@ import FileUpload from "primevue/fileupload";
 import InputText from "primevue/inputtext";
 import api from '@/utils/api';
 import Dropdown from "primevue/dropdown";
+import MultiSelect from "primevue/multiselect";
 import Message from "primevue/message";
 import Toast from "primevue/toast";
 import MardownEditor from "./MardownEditor.vue";
@@ -160,6 +161,7 @@ export default {
         FileUpload,
         InputText,
         Dropdown,
+        MultiSelect,
         Message,
         Toast,
         MardownEditor,
@@ -317,20 +319,37 @@ export default {
             console.log(this.selectedStandard)
         },
         async fetchSaveData() {
+            const model_list = Object.values(this.selectedModel);
             try {
-                const res = await api.fetchSaveData(this.selectedDataset,this.selectedModel,this.selectedStandard);
+                const res = await api.fetchSaveData(this.selectedDataset,model_list,this.selectedStandard);
                 console.log("response",res.data,res.headers);
-                if(res.data.error) {
-                    this.showToast('error','Error',res.data.error);
+                const contentDisposition = res.headers['content-disposition'];
+                let fileName = 'results.zip';
+                if (contentDisposition) {
+                    const fileNameMatch = contentDisposition.match(/filename\*?=['"]?(?:UTF-8''|)([^;'"]+)['"]?/);
+                    console.log(fileNameMatch)
+                    if (fileNameMatch.length === 2) {
+                        fileName = decodeURIComponent(fileNameMatch[1]);
+                    }
+                }
+                if (res.data.type === 'application/json') {
+                    const reader = new FileReader();
+                    reader.onload = function () {
+                        const text = reader.result;
+                        const jsonResponse = JSON.parse(text);
+                        if (jsonResponse.error) {
+                            this.showToast('error', 'Error', jsonResponse.error);
+                        }
+                    }.bind(this);
+                    reader.readAsText(res.data);
                 } else {
-                    const { file_content, file_name } = res.data;
-                    const type = 'application/json';
-
-                    const blob = new Blob([file_content], { type });
+                    // const type = 'application/json';
+                    // const blob = new Blob([file_content], { type });
+                    const blob = new Blob([res.data], { type: 'application/zip'});
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = file_name;
+                    a.download = fileName;
                     document.body.appendChild(a);
                     a.click();
                     document.body.removeChild(a);
@@ -347,8 +366,16 @@ export default {
         async downloadDatasetInfo() {
             try {
                 const res = await api.fetchDatasetInfo(this.selectedDataset);
-                if(res.data.error) {
-                    this.showToast('error','Error',res.data.error);
+                if (res.data.type === 'application/json') {
+                    const reader = new FileReader();
+                    reader.onload = function () {
+                        const text = reader.result;
+                        const jsonResponse = JSON.parse(text);
+                        if (jsonResponse.error) {
+                            this.showToast('error', 'Error', jsonResponse.error);
+                        }
+                    }.bind(this);
+                    reader.readAsText(res.data);
                 } else {
                     const { file_content, file_name } = res.data;
                     const type = 'application/json';

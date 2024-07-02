@@ -65,3 +65,8 @@ class ChangeModelName(BaseModel):
     datasetID: int
     modelID: int
     modelname: str
+
+class ScoreDownload(BaseModel):
+    datasetID: int
+    modelIDs: List[int]
+    standard: int

@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_URL = 'http://localhost:8003/'
+const API_URL = 'http://101.230.144.192:10069/api/'
 // 'http://localhost:8003/'
 // 'http://101.230.144.192:10069/api/'
 
@@ -93,15 +93,16 @@ export default {
             type: type
         });
     },
-    fetchSaveData(datasetID, modelID,standard) {
-        return axios.get(API_URL + 'fetch/file/', {
-            params: {
-                datasetID: datasetID,
-                modelID: modelID,
-                standard: standard
-            }
+    fetchSaveData(datasetID, modelIDs,standard) {
+        return axios.post(API_URL + 'fetch/file/', {
+            datasetID: datasetID,
+            modelIDs: modelIDs,
+            standard: standard
         }, {
-            responseType: 'blob'  // 设置响应类型为 blob
+            responseType: 'blob',  // 设置响应类型为 blob
+            headers: {
+                'Accept': 'application/x-zip-compressed'
+            }
         })
     },
     fetchDatasetInfo(datasetID) {

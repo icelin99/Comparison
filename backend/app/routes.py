@@ -3,7 +3,7 @@ from typing import Optional, List
 from .database import Dataset, ModelName, Standard, Category, Tag, DataInfo, Result
 from .db_query import get_tags_by_dataset_and_categories, get_filter_results, save_page_by_page, read_file, fetch_save_file, get_categories, get_tags, update_dataset_by_path, update_result_by_path,update_score_by_path, save_ref_answer, del_dataset, del_result, get_accuracy_table, fetch_save_dataset, change_modelname
 from tortoise.exceptions import DoesNotExist
-from .request import TagRequest, FilterRequest, SaveRequest, PathRequest, ScoreFileRequest, CategoryRequest, EditAnswerRequest, DeleteDataset, DeleteResult, AccuracyRequest, ChangeModelName
+from .request import TagRequest, FilterRequest, SaveRequest, PathRequest, ScoreFileRequest, CategoryRequest, EditAnswerRequest, DeleteDataset, DeleteResult, AccuracyRequest, ChangeModelName, ScoreDownload
 from fastapi.responses import FileResponse
 import os
 import uuid
@@ -132,23 +132,17 @@ async def upload_json_path(request: PathRequest):
     else:
         return {"error":"unknwon error"}
 
-@router.get("/fetch/file/")
-async def fetch_file(datasetID: int, modelID: int, standard: int):
-    print(datasetID,modelID,standard)
-    res = await fetch_save_file(datasetID, modelID,standard)
-    if res == "empty":
-        return {"error":"所选的参数没有数据可以读取"}
-    else:
-        return res
 
+@router.post("/fetch/file/")
+async def fetch_file(request: ScoreDownload):
+    res = await fetch_save_file(request.datasetID, request.modelIDs, request.standard)
+    return res
+    
 @router.get("/fetch/dataset/")
 async def fetch_dataset(datasetID: int):
     print(datasetID)
     res = await fetch_save_dataset(datasetID)
-    if res == "empty":
-        return {"error":"所选的参数没有info可以读取"}
-    else:
-        return res
+    return res
 
 @router.get("/download/{file_name}")
 async def download_file(file_name: str):
