@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_URL = 'http://101.230.144.192:10069/api/'
+const API_URL = 'http://localhost:8003/'
 // 'http://localhost:8003/'
 // 'http://101.230.144.192:10069/api/'
 

@@ -295,7 +295,7 @@ async def add_result(dataset, result_name, result_path):
                     normalized_question = remove_end_point(question)
                     answer = data["result"]
                     # 首先根据 image_path 进行过滤
-                    candidates = await DataInfo.filter(image_path=filename)
+                    candidates = await DataInfo.filter(image_path=filename, dataset=dataset)
                     data_info = None
                     if len(candidates) == 1:
                         # 如果只有一个候选项，直接返回这个候选项
@@ -359,7 +359,7 @@ async def add_score(dataset, model_name, model_path):
                     if score is None or isinstance(score, float) and math.isnan(score):
                         continue
                     # 首先根据 image_path 进行过滤
-                    candidates = await DataInfo.filter(image_path=filename)
+                    candidates = await DataInfo.filter(image_path=filename, dataset=dataset)
                     data_info = None
                     if len(candidates) == 1:
                         data_info =  candidates[0]
@@ -369,6 +369,7 @@ async def add_score(dataset, model_name, model_path):
                             if candidate.question == normalized_question:
                                 data_info = candidate
                     assert data_info, f"Error, data_info not found, {filename}, {normalized_question}"
+                    print(filename,normalized_question)
                     try:
                         result = await Result.get(dataset=dataset,model=model,data_info = data_info)
                         print(result.id)
@@ -391,12 +392,13 @@ async def add_score(dataset, model_name, model_path):
                         
                     except DoesNotExist:
                         # 如果 Result 不存在，处理异常情况
-                        print(f"Result with model={model_name}, data_info={data_info.image_path} does not exist")
+                        print(f"Result with model={model_name}, data_info={data_info.id} does not exist")
                         pass
             
         except DoesNotExist:
             print(f"model={model_name} does not exist")
             pass
+
                 
 
 

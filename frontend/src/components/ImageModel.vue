@@ -82,7 +82,7 @@
                             </Rating> -->
                             <div class="rating">
                                 <template v-if="ratingStandard <= 5">
-                                    <span v-for="i in ratingStandard" :key="i" @click="onRatingChange(i, slotProps.index)"
+                                    <span v-for="i in ratingStandard" :key="i" @click="isEditMode ? onRatingChange(i, slotProps.index) : null"
                                           :class="{ active: slotProps.data.score !== null && slotProps.data.score !== undefined && i == reverseScaleScore(slotProps.data.score) }">
                                       {{ scaleScore(i) }}
                                     </span>
@@ -90,7 +90,7 @@
                                   <template v-else>
                                     <div  class="rating-line">
                                         <div v-for="(line, index) in splitRatingStandard" :key="index">
-                                            <span v-for="i in line" :key="i" @click="onRatingChange(i, slotProps.index)"
+                                            <span v-for="i in line" :key="i" @click="isEditMode ? onRatingChange(i, slotProps.index) : null"
                                                   :class="{ active: slotProps.data.score !== null && slotProps.data.score !== undefined && i == reverseScaleScore(slotProps.data.score) }">
                                               {{ scaleScore(i) }}
                                             </span>

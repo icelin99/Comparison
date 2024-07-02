@@ -4,7 +4,7 @@
         <Button class="clear-btn" v-if="selectSubmitted" @click="clearClick">清空所选项并跳转到主页面</Button>
         <Sidebar v-model:visible="showSidebar" header="功能列表" position="right">
             <div class="sidebar-list">
-                
+                    <div class="sidebar-item"><Button  @click="clearClick">跳转到主页面</Button></div>
                     <div  class="sidebar-item"><Button @click="fileShow = true">上传JSON文件</Button></div>
                     <div  class="sidebar-item">
                         <Button @click="goDelete" >删除相关信息</Button>

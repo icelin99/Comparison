@@ -527,8 +527,8 @@ def check_score_file(dataset_dir,score_path,score_name,dataset_name):
             return "文件路径不存在"
 
     # 检查 score filename 是否在 result 中有对应的文件名
-    if check_filename_in_directory(score_name,dataset_name) == False:
-        return "在result中没有对应的模型名"
+    # if check_filename_in_directory(score_name,dataset_name) == False:
+    #     return "在result中没有对应的模型名"
     return "OK"
 
 def check_filename_in_directory(filename,dataset_name):
@@ -592,6 +592,7 @@ async def get_accuracy_table(datasetIDs, modelIDs, standard):
         for category_id, category_data in categories.items():
             for tag_id, tag_data in category_data['tags'].items():
                 model_scores = {model_id: [] for model_id in modelIDs}
+                data_info_count = len(tag_data['data_infos'])
                 for data_info in tag_data['data_infos']:
                     results = await Result.filter(dataset_id=dataset_id, data_info_id=data_info, model_id__in=modelIDs)
                     for result in results:
@@ -619,8 +620,11 @@ async def get_accuracy_table(datasetIDs, modelIDs, standard):
                     if category_data["name"] not in accuracy_table[dataset__.name]:
                         accuracy_table[dataset__.name][category_data["name"]] = {}
                     if tag_data["name"] not in accuracy_table[dataset__.name][category_data["name"]]:
-                        accuracy_table[dataset__.name][category_data["name"]][tag_data["name"]] = []
-                    accuracy_table[dataset__.name][category_data["name"]][tag_data["name"]].append({
+                        accuracy_table[dataset__.name][category_data["name"]][tag_data["name"]] = {
+                            "count": data_info_count,
+                            "models": [],
+                        }
+                    accuracy_table[dataset__.name][category_data["name"]][tag_data["name"]]["models"].append({
                         'model_id': model_id,
                         'model_name': model_id_to_name.get(model_id),
                         'accuracy': "None" if accuracy is None else "%.2f%%" % accuracy
