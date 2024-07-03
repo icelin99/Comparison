@@ -147,8 +147,10 @@ import 'katex/dist/katex.min.css';
 // import { renderMarkdown } from '../utils/markdownCompile.js';
 import CodeBlockRenderer from './CodeBlockRenderer.vue'
 import hljs from 'highlight.js';
-  import 'highlight.js/styles/default.css';
-  import { marked } from 'marked';
+import 'highlight.js/styles/default.css';
+import { marked } from 'marked';
+import showdown from 'showdown';
+import showdownKatex from 'showdown-katex';
 
 
 export default {
@@ -346,7 +348,7 @@ export default {
             // 处理代码块
             content = content.replace(/```([\s\S]*?)\n([\s\S]*?)```/g, function(match, lang, code) {
                 console.log("Matched language:", lang, code);
-                if (lang.trim() === 'latex') {
+                if (lang.trim() === 'latex' || lang.trim() === 'asciimath') {
                     try {
                         return katex.renderToString(code, { displayMode: true });
                     } catch (error) {
@@ -357,23 +359,37 @@ export default {
                 }
             });
             content = content.replace(/\\n/g, '\n').replace(/^```markdown/, '').replace(/```$/, '').replace(/```/g, '\\`\\`\\`');
+
+            // 先渲染markdown
+            let converter = new showdown.Converter({
+            tables: true,
+            strikethrough: true,
+            underline: true,
+            extensions: [
+              showdownKatex({
+                throwOnError: false,
+                displayMode: false,
+                delimiters: [
+                  { left: "$$", right: "$$", display: false },
+                  { left: "$", right: "$", display: false },
+                  { left: "~", right: "~", display: false, asciimath: true },
+                ]
+              })
+            ]
+          });
+
             // 处理行内公式
-            content = content.replace(/\$([^$]+)\$/g, function(match, p1) {
-            return `\\(${p1}\\)`;
-            });
-            content = content.replace(/\\(?![\\])/g, '\\\\');
-            
-            // 处理行内公式
-            content = content.replace(/\$([^$]+)\$/g, function(match, p1) {
-                return `\\(${p1}\\)`;
-            });
+            // convertedContent = convertedContent.replace(/\$([^$]+)\$/g, function(match, p1) {
+            // return `\\(${p1}\\)`;
+            // });
+            //convertedContent = convertedContent.replace(/\\(?![\\])/g, '\\\\');
 
             // 处理块级公式
-            content = content.replace(/\$\$([\s\S]*?)\$\$/g, function(match, p1) {
-                return `\\[${p1}\\]`;
-            });
+            // convertedContent = convertedContent.replace(/\$\$([\s\S]*?)\$\$/g, function(match, p1) {
+            //     return `\\[${p1}\\]`;
+            // });
             // 处理 LaTeX 公式
-            function replaceLatex(match, p1) {
+            function replaceInlineLatex(match, p1) {
                 console.log("处理latex公式：",p1);
                 try {
                     return katex.renderToString(p1, { displayMode: false });
@@ -390,25 +406,74 @@ export default {
                     return match; // 如果解析失败，返回原始字符串
                 }
             }
-            // 处理行内公式
-            content = content.replace(/\$([^$]+)\$/g, replaceLatex);
-
-            // 处理块级公式
-            content = content.replace(/\$\$([\s\S]*?)\$\$/g, replaceBlockLatex);
-
+            
             // 处理复杂的 LaTeX 公式
-            content = content.replace(/\\begin{([\s\S]*?)}([\s\S]*?)\\end{([\s\S]*?)}/g, function(match, p1, p2, p3) {
-                if (p1 === p3) {
+            function replaceEnvironment(match,slashes, p1, p2) {
+                console.log("处理LaTeX环境公式：",p1, `${slashes}begin{${p1}}${p2}${slashes}end{${p1}}`);
+                const environments = ['align', 'align*', 'equation', 'equation*', 'flalign','flalign*','gather', 'gather*', 'multline', 'multline*','subequations','subequations*','split','split*','gathered','gathered*','aligned','aligned*','alignedat','alignedat*'];
+                console.log(environments.includes(p1),environments.includes("align*"))
+                if (environments.includes(p1)) {
+                  console.log("yyyyy")
                     try {
-                        return katex.renderToString(`\\begin{${p1}}${p2}\\end{${p3}}`, { displayMode: true });
+                      console.log("nnnnn")
+                      console.log(`\\begin{${p1}}${p2}\\end{${p1}}`)
+                        return katex.renderToString(`\\begin{${p1}}${p2}\\end{${p1}}`, { displayMode: true });
                     } catch (error) {
+                      console.log("error katex",error)
                         return match; // 如果解析失败，返回原始字符串
                     }
                 }
                 return match; // 如果不匹配，返回原始字符串
+            }
+            // // 处理行内公式
+            // convertedContent = convertedContent.replace(/\$([^$]+)\$/g, replaceLatex);
+
+            // // 处理块级公式
+            // convertedContent = convertedContent.replace(/\$\$([\s\S]*?)\$\$/g, replaceBlockLatex);
+
+            // // 处理复杂的 LaTeX 公式环境
+            // convertedContent = convertedContent.replace(/(\\{1,2})begin{(\w+[*]?)}([\s\S]*?)\1end{\2}/g, replaceEnvironment);
+
+            // 占位符存储
+            let latexPlaceholders = [];
+
+            // 替换所有LaTeX公式为占位符
+            let processedContent = content
+                .replace(/\$\$([\s\S]*?)\$\$/g, (match, p1) => {
+                  latexPlaceholders.push({ latex: p1, displayMode: true });
+                  return replaceBlockLatex(match, p1);
+                })
+                .replace(/\$([^$]+)\$/g, (match, p1) => {
+                  latexPlaceholders.push({ latex: p1, displayMode: false });
+                  return replaceInlineLatex(match, p1);
+                })
+                .replace(/(\\{1,2})begin{(\w+[*]?)}([\s\S]*?)\1end{\2}/g, (match, slashes, p1, p2) => {
+                  console.log(match,"hh");
+                  latexPlaceholders.push({ latex: match, displayMode: true });
+                  return replaceEnvironment(match, slashes, p1, p2);
+                });
+            // 用showdown转换Markdown内容为HTML
+            let htmlContent = converter.makeHtml(processedContent);
+
+            // 将占位符替换回LaTeX公式并用KaTeX渲染
+            latexPlaceholders.forEach((item,index) => {
+              console.log("item.latex",item.latex)
+                let renderedLatex;
+                try {
+                    if (item.displayMode) {
+                        renderedLatex = katex.renderToString(item.latex.slice(2, -2), { displayMode: true });
+                    } else {
+                        renderedLatex = katex.renderToString(item.latex.slice(1, -1), { displayMode: false });
+                    }
+                } catch (error) {
+                    renderedLatex = item.latex; // 如果解析失败，返回原始字符串
+                }
+                htmlContent = htmlContent.replace(`__LATEX_PLACEHOLDER_${index}__`, renderedLatex);
             });
             // 处理Markdown
-            this.renderedContent = marked(content);
+            // this.renderedContent = marked(content);
+            
+          
 
             this.$nextTick(() => {
                 // 语法高亮
@@ -421,7 +486,7 @@ export default {
                 window.MathJax.typesetPromise();
                 }
             });
-            return this.renderedContent;
+            return htmlContent;
         },
         handleKeydown(event) {
             if (event.key === "ArrowLeft") {

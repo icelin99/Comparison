@@ -14,6 +14,9 @@
           <Button  icon="pi pi-times" class="p-button-clear custom-clear-button" @click="clearData" />
           <Button icon="pi pi-search" class="p-button-query custom-query-button" @click="queryData" />
       </div>
+      <div class="select-container" >
+        <Button class="custom-export-btn" @click="export2Excel">导出为Excel</Button>
+      </div>
     </div>
     <div class="accuracy-table" >
       
@@ -24,12 +27,12 @@
             <th class="fixed-header">Category</th>
             <th class="fixed-header">Tag</th>
             <th class="fixed-header">Count</th>
-            <th class="model-header" v-for="model in modelNames" :key="model">{{ model }}</th>
+            <th class="model-header " v-for="model in modelNames" :key="model">{{ model }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="(row, rowIndex) in tableData" :key="rowIndex" :class="getRowClass(rowIndex)">
-            <td v-if="isFirstRowspan('dataset', rowIndex)" :rowspan="computeRowspan('dataset', rowIndex)">{{ row.dataset }}</td>
+            <td v-if="isFirstRowspan('dataset', rowIndex)"  :rowspan="computeRowspan('dataset', rowIndex)">{{ row.dataset }}</td>
             <td v-if="isFirstRowspan('category', rowIndex)" :rowspan="computeRowspan('category', rowIndex)">{{ row.category }}</td>
             <td>{{ row.tag }}</td>
             <td>{{ row.count }}</td>
@@ -52,6 +55,7 @@ import Dropdown from 'primevue/dropdown';
 import api from '@/utils/api';
 import Button from 'primevue/button';
 import Toast from 'primevue/toast';
+import * as XLSX from 'xlsx';
   
 export default {
     components: {
@@ -66,7 +70,7 @@ export default {
         return {
         // jsonData: 
         // {'common_ability': {'ocr': {'None': [{'model_id': 1, 'model_name': 'd240319_common_ability_vit1b_internlm2chat20b', 'accuracy': '41.67%'}, {'model_id': 2, 'model_name': 'd240415_common_ability_vit1b_internlm2chat20b', 'accuracy': '41.67%'}, {'model_id': 3, 'model_name': 'd240424_common_ability', 'accuracy': '66.67%'}],'Test': [{'model_id': 1, 'model_name': 'd240319_common_ability_vit1b_internlm2chat20b', 'accuracy': '41.67%'}, {'model_id': 2, 'model_name': 'd240415_common_ability_vit1b_internlm2chat20b', 'accuracy': '41.67%'}, {'model_id': 3, 'model_name': 'd240424_common_ability', 'accuracy': '66.67%'}]}, '长图理解': {'None': [{'model_id': 1, 'model_name': 'd240319_common_ability_vit1b_internlm2chat20b', 'accuracy': '66.67%'}, {'model_id': 2, 'model_name': 'd240415_common_ability_vit1b_internlm2chat20b', 'accuracy': '83.33%'}, {'model_id': 3, 'model_name': 'd240424_common_ability', 'accuracy': '83.33%'}]}, 'UI理解': {'None': [{'model_id': 1, 'model_name': 'd240319_common_ability_vit1b_internlm2chat20b', 'accuracy': '0.00%'}, {'model_id': 2, 'model_name': 'd240415_common_ability_vit1b_internlm2chat20b', 'accuracy': '25.00%'}, {'model_id': 3, 'model_name': 'd240424_common_ability', 'accuracy': '41.67%'}]}, '推理能力': {'None': [{'model_id': 1, 'model_name': 'd240319_common_ability_vit1b_internlm2chat20b', 'accuracy': '28.57%'}, {'model_id': 2, 'model_name': 'd240415_common_ability_vit1b_internlm2chat20b', 'accuracy': '50.00%'}, {'model_id': 3, 'model_name': 'd240424_common_ability', 'accuracy': '28.57%'}]}, '指令跟随能力': {'None': [{'model_id': 1, 'model_name': 'd240319_common_ability_vit1b_internlm2chat20b', 'accuracy': '58.33%'}, {'model_id': 2, 'model_name': 'd240415_common_ability_vit1b_internlm2chat20b', 'accuracy': '66.67%'}, {'model_id': 3, 'model_name': 'd240424_common_ability', 'accuracy': '66.67%'}]}, '翻译': {'None': [{'model_id': 1, 'model_name': 'd240319_common_ability_vit1b_internlm2chat20b', 'accuracy': '30.00%'}, {'model_id': 2, 'model_name': 'd240415_common_ability_vit1b_internlm2chat20b', 'accuracy': '0.00%'}, {'model_id': 3, 'model_name': 'd240424_common_ability', 'accuracy': '35.00%'}]}, '表格提取': {'None': [{'model_id': 1, 'model_name': 'd240319_common_ability_vit1b_internlm2chat20b', 'accuracy': '0.00%'}, {'model_id': 2, 'model_name': 'd240415_common_ability_vit1b_internlm2chat20b', 'accuracy': '0.00%'}, {'model_id': 3, 'model_name': 'd240424_common_ability', 'accuracy': '0.00%'}]}, '幽默理解': {'None': [{'model_id': 1, 'model_name': 'd240319_common_ability_vit1b_internlm2chat20b', 'accuracy': '0.00%'}, {'model_id': 2, 'model_name': 'd240415_common_ability_vit1b_internlm2chat20b', 'accuracy': '0.00%'}, {'model_id': 3, 'model_name': 'd240424_common_ability', 'accuracy': '0.00%'}]}, 'region caption': {'None': [{'model_id': 1, 'model_name': 'd240319_common_ability_vit1b_internlm2chat20b', 'accuracy': 'None'}, {'model_id': 2, 'model_name': 'd240415_common_ability_vit1b_internlm2chat20b', 'accuracy': 'None'}, {'model_id': 3, 'model_name': 'd240424_common_ability', 'accuracy': 'None'}]}, 'grounding': {'None': [{'model_id': 1, 'model_name': 'd240319_common_ability_vit1b_internlm2chat20b', 'accuracy': 'None'}, {'model_id': 2, 'model_name': 'd240415_common_ability_vit1b_internlm2chat20b', 'accuracy': 'None'}, {'model_id': 3, 'model_name': 'd240424_common_ability', 'accuracy': 'None'}]}, '数数': {'None': [{'model_id': 1, 'model_name': 'd240319_common_ability_vit1b_internlm2chat20b', 'accuracy': '16.67%'}, {'model_id': 2, 'model_name': 'd240415_common_ability_vit1b_internlm2chat20b', 'accuracy': '33.33%'}, {'model_id': 3, 'model_name': 'd240424_common_ability', 'accuracy': '16.67%'}]}, '文案诗歌': {'None': [{'model_id': 1, 'model_name': 'd240319_common_ability_vit1b_internlm2chat20b', 'accuracy': '90.00%'}, {'model_id': 2, 'model_name': 'd240415_common_ability_vit1b_internlm2chat20b', 'accuracy': '100.00%'}, {'model_id': 3, 'model_name': 'd240424_common_ability', 'accuracy': '80.00%'}]}, 'Zero-shot能力': {'None': [{'model_id': 1, 'model_name': 'd240319_common_ability_vit1b_internlm2chat20b', 'accuracy': '50.00%'}, {'model_id': 2, 'model_name': 'd240415_common_ability_vit1b_internlm2chat20b', 'accuracy': '33.33%'}, {'model_id': 3, 'model_name': 'd240424_common_ability', 'accuracy': '66.67%'}]}, '复杂图表': {'None': [{'model_id': 1, 'model_name': 'd240319_common_ability_vit1b_internlm2chat20b', 'accuracy': 'None'}, {'model_id': 2, 'model_name': 'd240415_common_ability_vit1b_internlm2chat20b', 'accuracy': 'None'}, {'model_id': 3, 'model_name': 'd240424_common_ability', 'accuracy': 'None'}]}}},
-        jsonData: {'Drive_AGI_testset_0625': {'万物感知': {'动物': {'count': 30, 'models': [{'model_id': 122, 'model_name': 'gpt4o_Drive_AGI_testset_0625', 'accuracy': 'None'}, {'model_id': 128, 'model_name': '0522v2car_Drive_AGI_testset_0625', 'accuracy': '80.00%'}]}, '建筑识别': {'count': 12, 'models': [{'model_id': 122, 'model_name': 'gpt4o_Drive_AGI_testset_0625', 'accuracy': 'None'}, {'model_id': 128, 'model_name': '0522v2car_Drive_AGI_testset_0625', 'accuracy': '41.67%'}]}, '品牌': {'count': 20, 'models': [{'model_id': 122, 'model_name': 'gpt4o_Drive_AGI_testset_0625', 'accuracy': 'None'}, {'model_id': 128, 'model_name': '0522v2car_Drive_AGI_testset_0625', 'accuracy': '75.00%'}]}, '车型': {'count': 19, 'models': [{'model_id': 122, 'model_name': 'gpt4o_Drive_AGI_testset_0625', 'accuracy': 'None'}, {'model_id': 128, 'model_name': '0522v2car_Drive_AGI_testset_0625', 'accuracy': '63.16%'}]}, '植物': {'count': 30, 'models': [{'model_id': 122, 'model_name': 'gpt4o_Drive_AGI_testset_0625', 'accuracy': 'None'}, {'model_id': 128, 'model_name': '0522v2car_Drive_AGI_testset_0625', 'accuracy': '43.33%'}]}, '二维码': {'count': 30, 'models': [{'model_id': 122, 'model_name': 'gpt4o_Drive_AGI_testset_0625', 'accuracy': 'None'}, {'model_id': 128, 'model_name': '0522v2car_Drive_AGI_testset_0625', 'accuracy': '0.00%'}]}, '交通标识': {'count': 34, 'models': [{'model_id': 122, 'model_name': 'gpt4o_Drive_AGI_testset_0625', 'accuracy': 'None'}, {'model_id': 128, 'model_name': '0522v2car_Drive_AGI_testset_0625', 'accuracy': '36.76%'}]}}, '车辆感知': {'品牌': {'count': 9, 'models': [{'model_id': 122, 'model_name': 'gpt4o_Drive_AGI_testset_0625', 'accuracy': 'None'}, {'model_id': 128, 'model_name': '0522v2car_Drive_AGI_testset_0625', 'accuracy': '55.56%'}]}, '车型': {'count': 11, 'models': [{'model_id': 122, 'model_name': 'gpt4o_Drive_AGI_testset_0625', 'accuracy': 'None'}, {'model_id': 128, 'model_name': '0522v2car_Drive_AGI_testset_0625', 'accuracy': '54.55%'}]}, 'color': {'count': 20, 'models': [{'model_id': 122, 'model_name': 'gpt4o_Drive_AGI_testset_0625', 'accuracy': 'None'}, {'model_id': 128, 'model_name': '0522v2car_Drive_AGI_testset_0625', 'accuracy': '30.00%'}]}, 'lane': {'count': 18, 'models': [{'model_id': 122, 'model_name': 'gpt4o_Drive_AGI_testset_0625', 'accuracy': 'None'}, {'model_id': 128, 'model_name': '0522v2car_Drive_AGI_testset_0625', 'accuracy': '61.11%'}]}, 'orientation': {'count': 20, 'models': [{'model_id': 122, 'model_name': 'gpt4o_Drive_AGI_testset_0625', 'accuracy': 'None'}, {'model_id': 128, 'model_name': '0522v2car_Drive_AGI_testset_0625', 'accuracy': '42.11%'}]}, '价格询问': {'count': 28, 'models': [{'model_id': 122, 'model_name': 'gpt4o_Drive_AGI_testset_0625', 'accuracy': 'None'}, {'model_id': 128, 'model_name': '0522v2car_Drive_AGI_testset_0625', 'accuracy': '71.43%'}]}}, '全局感知': {'模糊描述': {'count': 20, 'models': [{'model_id': 122, 'model_name': 'gpt4o_Drive_AGI_testset_0625', 'accuracy': 'None'}, {'model_id': 128, 'model_name': '0522v2car_Drive_AGI_testset_0625', 'accuracy': '65.00%'}]}, 'poem': {'count': 11, 'models': [{'model_id': 122, 'model_name': 'gpt4o_Drive_AGI_testset_0625', 'accuracy': 'None'}, {'model_id': 128, 'model_name': '0522v2car_Drive_AGI_testset_0625', 'accuracy': '35.00%'}]}}}},
+        jsonData: {},
         tableData: [],
         modelNames: [],
         rowspans: {
@@ -225,6 +229,26 @@ export default {
         showToast(severity,summary,detail){
             this.$refs.toast.add({ severity: severity, summary: summary, detail: detail, life: 2000 })
         },
+        export2Excel() {
+          const ws = XLSX.utils.json_to_sheet(this.tableData);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb,ws, "Sheet1");
+          const datasetname = this.datasets.find(item => item.id===this.selectedDataset);
+          const filename = datasetname.name + "_" + String(this.selectedModel.length)+ "_" + this.getStandardName()+".xlsx";
+          console.log(this.datasets,datasetname,filename, )
+          XLSX.writeFile(wb,filename);
+        },
+        getStandardName() {
+          console.log(this.selecteStandard)
+          if(this.selecteStandard == 3) {
+            return "xiaomi_standard"
+          } else if(this.selecteStandard == 5) {
+            return "gpt4_five_point"
+          } else if(this.selecteStandard == 10) {
+            return " gpt4_ten_point"
+          }
+          return ""
+        }
     }
 };
 </script>
@@ -233,18 +257,23 @@ export default {
 .accuracy-container {
   display: flex;
   flex-direction: column;
-  top: 45px;
-  position: fixed;
+
   width: 100%;
+  height: 100vh;
+  position: absolute;
+
+  top: 60px;
+  left: 0;
+  right: 0;
+  bottom: 0;
 }
 .accuracy-table {
    /* top: 90px; 
     position: fixed; */
     flex: 1;
-    bottom: 0; 
-    width: 100%; 
-    overflow-y: auto;
-    max-height: calc(100% -45px);
+    width: 100%;
+
+
 }
 .ctn-container {
   display: flex;
@@ -259,9 +288,14 @@ export default {
   margin: auto;
   padding-left: 100px;
   padding-right: 100px;
+  padding-bottom: 5px;
+  padding-top: 5px;
   font-family: 'Arial', sans-serif; 
   font-weight: bold;
-  z-index: 1;
+  z-index: 10;
+  position: sticky;
+  top: 0;
+  background-color: #ffffff;
 }
 .select-container {
   display: flex;
@@ -273,41 +307,65 @@ export default {
 .custom-table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
+  table-layout: auto;
+  overflow: auto;
 }
 
 .custom-table th,
 .custom-table td {
   border: 1px solid #ddd;
   padding: 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /*text-overflow: ellipsis; */
   white-space: nowrap;
 }
+
 
 .custom-table th.fixed-header {
   background-color: rgb(238, 243, 248);
   text-align: center;
-  width: 50px;
+  width: 5vb;
   white-space: normal; 
   word-wrap: break-word;
 }
 .custom-table th.dataset-header {
   background-color: rgb(238, 243, 248);
   text-align: center;
-  width: 80px;
+  width: 5vb;
+  left: 0;
 }
 .custom-table th.model-header{
   background-color: rgb(238, 243, 248);
   text-align: center;
-  width: 100px;
+  min-width: 15vb;
+  max-width: 20vb;
   white-space: normal; 
   word-wrap: break-word;
 
 }
+.sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 80px;
+}
 
 .custom-table td {
   white-space: nowrap;
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.sticky-col:nth-child(2) {
+  left: 10vb;
+}
+
+.sticky-col:nth-child(3) {
+  left: 10vb;
+}
+
+.sticky-col:nth-child(4) {
+  left: 15vb;
 }
 
 .even-row {
@@ -316,6 +374,16 @@ export default {
 
 .odd-row {
   background-color: #ffffff;
+}
+
+::v-deep .custom-export-btn {
+  background-color: #f4f9ff !important;
+  border: none;
+  color:#4a97ea;
+  height: 35px;
+}
+::v-deep .custom-export-btn:hover {
+  background-color: #f9fcff !important;
 }
 
 </style>

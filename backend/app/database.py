@@ -197,24 +197,34 @@ async def update_datainfo_category_tag(folder_path,dataset_name,dataset):
                 try:
                     await add_new_category_tag_datainfo(folder_path,data,dataset)
                 except Exception as e:
+                    await Dataset.filter(id=dataset.id).delete()
                     return {"error": str(e)}
     
     # 新增result
     result_dir = os.path.join('/mnt/afs/user/chenzixuan/eval_tool_info/results',dataset_name)
-    for result_name in os.listdir(result_dir):
-        result_path = os.path.join(result_dir,result_name)
-        try:
-            await add_result(dataset,result_name,result_path)
-        except Exception as e:
-            return {"error": "add_result失败"}
+    if os.path.exists(result_dir):
+        for result_name in os.listdir(result_dir):
+            result_path = os.path.join(result_dir, result_name)
+            try:
+                await add_result(dataset, result_name, result_path)
+            except Exception as e:
+                await Dataset.filter(id=dataset.id).delete()
+                return {"error": "add_result失败"}
+    else: # 不存在result 添加一个假的model和result
+        preview_res = await add_preview_result(dataset)
+        if "error" in preview_res:
+            await Dataset.filter(id=dataset.id).delete()
+            return {"error":"添加preview数据失败"}
     # 新增 score
     score_dir = os.path.join('/mnt/afs/user/chenzixuan/eval_tool_info/results_score',dataset_name)
-    for model_name in os.listdir(score_dir):
-        model_path = os.path.join(score_dir, model_name)
-        try: 
-            await add_score(dataset,model_name,model_path)
-        except Exception as e:
-            return {"error": "add_score失败"}
+    if os.path.exists(score_dir):
+        for model_name in os.listdir(score_dir):
+            model_path = os.path.join(score_dir, model_name)
+            try: 
+                await add_score(dataset,model_name,model_path)
+            except Exception as e:
+                await Dataset.filter(id=dataset.id).delete()
+                return {"error": "add_score失败"}
     return {"success": "chenggong"}
 
 
@@ -429,3 +439,18 @@ def remove_end_point(msg: str):
     while idx>=0 and unicodedata.category(msg[idx]) in {"Pd", "Ps", "Pe", "Pi", "Pf", "Po"}:
         idx -= 1
     return msg[: idx + 1]
+
+
+async def add_preview_result(dataset):
+    print("add preview!!")
+    try:
+        data_infos = await DataInfo.filter(dataset = dataset)
+        model = await ModelName.create(dataset=dataset, name="preview")
+        for data_info in data_infos:
+            print(data_info.id,model.id)
+            result = (await Result.get_or_create(dataset=dataset, model=model, data_info=data_info, answer="preview"))[0]
+            print(result.id,"result id")
+        return {"success": "成功添加preview数据"}
+    except Exception as e:
+        print("error",str(e))
+        return {"error": str(e)}

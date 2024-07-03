@@ -12,7 +12,8 @@ module.exports = {
     },
     rules: {
       'vue/no-unused-components': 'off',  // 禁用未使用组件规则
-      "vue/no-v-model-argument": "off"
+      "vue/no-v-model-argument": "off",
+      "no-unused-vars": "off"
     }
   };
   
