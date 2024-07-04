@@ -15,6 +15,7 @@ class Dataset(Model):
     id = fields.IntField(pk=True)
     name = fields.CharField(max_length=255, unique=True)
     related_models = fields.ReverseRelation["ModelName"]
+    standards = fields.ManytoManyFileds('models.Standard', related_name='datasets', through='dataset_standard')
 
 class ModelName(Model):
     id = fields.IntField(pk=True)
@@ -138,6 +139,9 @@ async def process_josn_file(directory_path):
             
 
 async def add_new_category_tag_datainfo(folder_path,data, dataset):
+    """
+    此函数应用于更新dataset，重新加载datainfo的信息
+    """
     filename = data["filename"]
     if filename.startswith('images/'):
         filename = filename[7:]  # 去掉前缀 'images/'
@@ -195,17 +199,17 @@ async def update_datainfo_category_tag(folder_path,dataset_name,dataset):
                 except Exception as e:
                     await Dataset.filter(id=dataset.id).delete()
                     return {"error": str(e)}
+    else:
+        return {"error": "dataset_info.json文件不存在"}
     
     # 新增result
     result_dir = os.path.join('/mnt/afs/user/chenzixuan/eval_tool_info/results',dataset_name)
     if os.path.exists(result_dir):
         for result_name in os.listdir(result_dir):
             result_path = os.path.join(result_dir, result_name)
-            try:
-                await add_result(dataset, result_name, result_path)
-            except Exception as e:
-                await Dataset.filter(id=dataset.id).delete()
-                return {"error": "add_result失败"}
+            result_res = await add_result(dataset, result_name, result_path)
+            if "error" in result_res:
+                return result_res
     else: # 不存在result 添加一个假的model和result
         preview_res = await add_preview_result(dataset)
         if "error" in preview_res:
@@ -216,11 +220,9 @@ async def update_datainfo_category_tag(folder_path,dataset_name,dataset):
     if os.path.exists(score_dir):
         for model_name in os.listdir(score_dir):
             model_path = os.path.join(score_dir, model_name)
-            try: 
-                await add_score(dataset,model_name,model_path)
-            except Exception as e:
-                await Dataset.filter(id=dataset.id).delete()
-                return {"error": "add_score失败"}
+            score_res = await add_score(dataset,model_name,model_path)
+            if "error" in score_res:
+                return score_res
     return {"success": "chenggong"}
 
 
@@ -295,6 +297,9 @@ async def process_results(directory_path):
            
 
 async def add_result(dataset, result_name, result_path):
+    """
+    此函数从单个文件中的每一项，查找filename和question对应的datainfo，新建为一个result
+    """
     # folder_path, folder_name
     if result_name.endswith('.json') or result_name.endswith('.jsonl'):
         model_name, _ = os.path.splitext(result_name)
@@ -333,7 +338,6 @@ async def add_result(dataset, result_name, result_path):
                     # assert data_info, "Error, data_info not found"
                     if not data_info:
                         return {"error": f"没找到相应的filename：{filename} ，question：{normalized_question}。"}
-                    print(f"add result, model {model_name}, data_info {data_info.id}")
                     result = (await Result.get_or_create(dataset=dataset, model=model, data_info=data_info,answer=answer))[0]
             return {"success": "结果已成功添加"}
         
@@ -359,6 +363,9 @@ async def process_results_score(directory_path):
 
 
 async def add_score(dataset, model_name, model_path):
+    """
+    此函数从score文件的每一项中，查找datainfo和question对应的result，更新分数
+    """
     if model_name.endswith('.json') or model_name.endswith('.jsonl'):
         standard = None
         if 'xiaomi_standard' in model_name:
@@ -400,7 +407,6 @@ async def add_score(dataset, model_name, model_path):
                     if not data_info:
                         print(f"data_info not found, {filename}, {normalized_question}")
                         continue
-                    print("find data info id ",data_info.id)
                     try:
                         result = await Result.get(dataset=dataset,model=model,data_info = data_info)
                         print(result.id)
@@ -420,15 +426,15 @@ async def add_score(dataset, model_name, model_path):
                         if data.get("reason"):
                             result.reason = data["reason"]
                         await result.save()
+                        return {"success": "成功上传分数"}
                         
                     except DoesNotExist:
                         # 如果 Result 不存在，处理异常情况
-                        print(f"Result with model={model_name}, data_info={data_info.id} does not exist")
-                        pass
+                        return { "error": f"Result with model={model_name}, data_info={data_info.id} does not exist"}
             
         except DoesNotExist:
-            print(f"model={model_name} does not exist")
-            pass
+            return {"error": f"model={model_name} does not exist"}
+            
                 
 
 def remove_end_point(msg: str):

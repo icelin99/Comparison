@@ -17,6 +17,12 @@ class FilterRequest(BaseModel):
     standard: int
     tagIDs: Optional[List[int]] = None
     categoryIDs: Optional[List[int]] = None
+    score: Optional[float] = None
+
+class FilterRequestByID(BaseModel):
+    modelIDs: Optional[List[int]]
+    standard: int
+    score: Optional[float] = None
 
 class ModelListGet(BaseModel):
     modelID: int

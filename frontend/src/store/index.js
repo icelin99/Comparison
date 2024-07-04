@@ -13,7 +13,8 @@ export default createStore({
         dataset: null,
         categoryList: [],
         tagList: [],
-        modelList: []
+        modelList: [],
+        dataInfoList: []
     },
     mutations: {
         set_selectSubmitted(state, data) {
@@ -71,6 +72,10 @@ export default createStore({
         },
         set_modelList(state, list) {
             state.modelList = list;
+        },
+        set_dataInfoList(state,list) {
+            state.dataInfoList = list;
+            localStorage.setItem("data_info_list",JSON.stringify(list));
         }
     },
     actions: {
@@ -109,6 +114,9 @@ export default createStore({
         },
         updateModelList({commit}, list) {
             commit('set_modelList',list);
+        },
+        updateDataInfoList({commit}, list) {
+            commit('set_dataInfoList',list)
         }
     },
     getters: {
@@ -125,5 +133,6 @@ export default createStore({
         categoryList: state => state.categoryList,
         tagList: state => state.tagList,
         modelList: state => state.modelList,
+        dataInfoList: state => state.dataInfoList
     }
 })

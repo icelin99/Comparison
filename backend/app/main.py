@@ -33,7 +33,7 @@ async def shutdown_event():
 # 假设数据库已经建好
 register_tortoise(
     app,
-    db_url='sqlite://db-607.sqlite3',
+    db_url='sqlite://db-704.sqlite3',
     modules={'models': ['app.database']}, 
     generate_schemas=False, 
     add_exception_handlers=True

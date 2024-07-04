@@ -1,19 +1,19 @@
 <template>
     <div>
-      <div :style="{height:'20%', width:'98%', top: '45px',position:'fixed'}"><DataSetProgress /></div>
+      <div :style="{height:'20%', width:'98%', top: '45px',position:'fixed'}"><HomePage/></div>
       <div :style="{height:'80%', width:'98%'}"><ImageModel /></div>
     </div>
 </template>
 
 <script>
 
-import DataSetProgress from './DatasetProgress.vue'
+import HomePage from './HomePage.vue'
 import ImageModel from './ImageModel.vue'
 
 export default {
     name: 'App',
     components: {
-        DataSetProgress,
+        HomePage,
         ImageModel
     },
     mounted() {

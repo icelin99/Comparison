@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Query, HTTPException, UploadFile, File, Form
 from typing import Optional, List
 from database_dev import Dataset, ModelName, Standard, Category, Tag, DataInfo, Result
-from db_query_dev import get_tags_by_dataset_and_categories, get_filter_results, save_page_by_page, read_file, fetch_save_file, get_categories, get_tags, update_dataset_by_path, update_result_by_path,update_score_by_path, save_ref_answer, del_dataset, get_accuracy_table, del_result, fetch_save_dataset, change_modelname
+from db_query_dev import get_tags_by_dataset_and_categories, get_filter_results, save_page_by_page, read_file, fetch_save_file, get_categories, get_tags, update_dataset_by_path, update_result_by_path,update_score_by_path, save_ref_answer, del_dataset, get_accuracy_table, del_result, fetch_save_dataset, change_modelname, get_filter_result_plus, get_info_by_datainfo_id
 from tortoise.exceptions import DoesNotExist
-from request_dev import TagRequest, FilterRequest, SaveRequest, PathRequest, ScoreFileRequest, CategoryRequest, AccuracyRequest, EditAnswerRequest, DeleteDataset, DeleteResult, ChangeModelName, ScoreDownload
+from request_dev import TagRequest, FilterRequest, SaveRequest, PathRequest, ScoreFileRequest, CategoryRequest, AccuracyRequest, EditAnswerRequest, DeleteDataset, DeleteResult, ChangeModelName, ScoreDownload, FilterRequestByID
 from fastapi.responses import FileResponse
 import os
 import uuid
@@ -79,20 +79,23 @@ async def get_filter_list(request: FilterRequest):
     standard = request.standard
     tagIDs = request.tagIDs
     categoryIDs = request.categoryIDs
-    print("datasetID, modelIDs, tagIDs, categoryIDs:", datasetID, modelIDs, tagIDs, categoryIDs)
-    output = await get_filter_results(datasetID,modelIDs, standard, tagIDs,categoryIDs)
-    return {"page_count":output["total_page"], "page_info":output["page_info"]}
+    score = request.score
+    print("datasetID, modelIDs, tagIDs, categoryIDs score:", datasetID, modelIDs, tagIDs, categoryIDs,score)
+    output = None
+    if score is None:
+        output = await get_filter_results(datasetID,modelIDs, standard,tagIDs,categoryIDs)
+    else:
+        output = await get_filter_result_plus(datasetID,modelIDs,standard,tagIDs,categoryIDs,score)
+    return {"page_count":output["total_page"], "page_info":output["page_info"],"data_info_list": output["data_info_list"]}
 
-@router.post("/page/{page_id}/")
-async def get_page_by_page_id(page_id: int, request: FilterRequest):
-    datasetID = request.datasetID
+@router.post("/page/{datainfo_id}/")
+async def get_page_by_page_id(datainfo_id:int, request: FilterRequestByID):
     modelIDs = request.modelIDs
     standard = request.standard
-    tagIDs = request.tagIDs
-    categoryIDs = request.categoryIDs
-    print("page id", page_id,"datasetID, modelIDs, tagIDs, categoryIDs:", datasetID, modelIDs, tagIDs, categoryIDs)
-    output = await get_filter_results(datasetID,modelIDs, standard, tagIDs,categoryIDs, page_id)
-    return {"page_count":output["total_page"], "page_info":output["page_info"]}
+    score = request.score
+    print("page id", datainfo_id,", modelIDs, score:",  modelIDs,score)
+    output = await get_info_by_datainfo_id(datainfo_id,modelIDs, standard,score)
+    return {"page_info":output}
 
 
 @router.post("/save/{page_id}/")
@@ -116,8 +119,8 @@ async def save_by_page_id(page_id: int, request: SaveRequest):
         return {"message": "save failed!"}
 
 @router.post("/upload-file/")
-async def upload_json(file: UploadFile = File(...), filetype: str = Form(...)):
-    return await read_file(file, filetype)
+async def upload_json(request: PathRequest):
+    return await read_file(request.file, request.type)
 
 @router.post("/upload-file-path/")
 async def upload_json_path(request: PathRequest):

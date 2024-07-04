@@ -1,8 +1,10 @@
 <template>
-<div>
+<div style="width: 100%;">
     <div v-if="isShow" class="ct-container">
         <div>Category<MultiSelect :options="categories" v-model="selectedCategory"  optionValue="id" optionLabel="name" filter showClear @change="onCategoryChange(index)" :style="{ minWidth: '150px' }" /></div>
         <div>Tag <MultiSelect :options="tags" v-model="selectedTag"  optionValue="id" optionLabel="name" filter showClear @change="onTagChange(index)" :style="{ minWidth: '150px' }"  />
+        </div>
+        <div>Score <Dropdown :options="filterScores" v-model="selectedCompareScore" optionValue="value" optionLabel="label"  filter showClear  :style="{ minWidth: '150px' }" @change="onFilterScore"  />
         </div>
         <div class="select-btn-container">
             <Button  icon="pi pi-times" class="p-button-clear custom-clear-button" @click="clearData" />
@@ -12,7 +14,7 @@
             <Button class="custom-mode-button" @click="changeMode">{{ isEditMode ? '切换为预览模式' : '切换为打分模式' }}</Button>
         </div>
     </div>
-    <div v-if="isShow" style="display: flex; flex-direction: row; width: 100%; max-height: calc(100% - 90px); overflow-y: auto; position:fixed; top: 95px; bottom:65px;">
+    <div v-if="isShow" style="display: flex; flex-direction: row; width: 100%; max-height: calc(100% - 90px); overflow: auto; position:fixed; top: 95px; bottom:65px; overflow-x:hidden;">
         <div :style="{width: '40%', height: '100%'}">
             <div style="display: flex; flex-direction: column; width: '100%'; height: '100%'; align-items: center;">
                 <div class="image-container" @dblclick="openModal('image', img_path)">
@@ -58,9 +60,10 @@
                 </div>
             </div>
         </div>
-        <div :style="{width: '60%', height: '100%'}">
+        <div :style="{width: '60%', height: '100%','max-width': '60%', 'overflow-x':'hidden'}">
             <div style="display: flex; flex-direction: row; width: '100%'; height: '100%'">
-                <DataTable :value="pageInfo.modelList" stripedRows tableStyle="min-width: 50rem; overflow: scroll; white-space: normal; word-wrap: break-word;" >
+                <DataTable :value="pageInfo.modelList" stripedRows tableStyle="min-width: 50rem; overflow: scroll; white-space: normal; word-wrap: break-word; " >
+                    <Column header="序号" field="index"></Column> 
                     <Column field="model_name" header="Model" style="max-width: 12rem; word-wrap: break-word;"></Column>
                     <Column field="answer" header="Answer" >
                         <template #body="{ data }">
@@ -139,6 +142,7 @@ import markdownItTable from 'markdown-it-multimd-table';
 import markdownItContainer from 'markdown-it-container';
 import katex from 'katex';
 import MultiSelect from 'primevue/multiselect'
+import Dropdown from 'primevue/dropdown'
 import Dialog from 'primevue/dialog'
 import InputText from 'primevue/inputtext'
 import Toast from 'primevue/toast'
@@ -163,13 +167,14 @@ export default {
         DataTable,
         Column,
         MultiSelect,
+        Dropdown,
         Dialog,
         InputText,
         Toast,
         CodeBlockRenderer
     },
     computed: {
-        ...mapGetters(["selectSubmitted","currentData", "pageCount", "currentPage","ratingStandard", "pageInfo", "categoryList", "tagList"]),
+        ...mapGetters(["selectSubmitted","currentData", "pageCount", "currentPage","ratingStandard", "pageInfo", "categoryList", "tagList","dataInfoList"]),
         splitRatingStandard() {
             // Split the array into two halves
             const rating = Array.from({ length: this.ratingStandard }, (_, index) => index + 1);
@@ -180,20 +185,47 @@ export default {
                 rating.slice(0, midpoint),
                 rating.slice(midpoint)
             ];
-        }
+        },
     },
     mounted() {
         this.$store.dispatch('updateIsLoading', false); // 挂载完成，隐藏loading
         window.addEventListener("keydown",this.handleKeydown);
+        this.getCategoryList();
+        this.getTagList();
     },
     beforeDestroy() {
         window.removeEventListener("keydown",this.handleKeydown);
     },
     watch: {
         selectSubmitted(newVal) {
+            this.selectedCategory = null;
+            this.selectedTag = null;
+            this.selectedCompareScore = null;
+            this.getCategoryList();
+            this.getTagList();
             console.log("submittted and show!");
             if(newVal == true) {
                 this.isShow = true;
+                const selectModels = JSON.parse(localStorage.getItem("modelIDs"));
+                console.log("select models",selectModels);
+                if(selectModels.length == 2) {
+                    if(this.ratingStandard == 3) {
+                        this.filterScores = [{ label: '0', value: 0 }, { label: '1', value: 0 },{ label: '模型1分数更高', value: -1 }, { label: '模型2分数更高', value: -2 }];
+                    } else if(this.ratingStandard == 5) {
+                        this.filterScores = [{ label: '0', value: 0 }, { label: '4', value: 4 },{ label: '模型1分数更高', value: -1 }, { label: '模型2分数更高', value: -2 }];
+                    } else if(this.ratingStandard == 10) {
+                        this.filterScores = [{ label: '0', value: 0 }, { label: '9', value: 9 },{ label: '模型1分数更高', value: -1 }, { label: '模型2分数更高', value: -2 }];
+                    }
+                } else {
+                    if(this.ratingStandard == 3) {
+                        this.filterScores = [{ label: '0', value: 0 }, { label: '1', value: 0 }];
+                    } else if(this.ratingStandard == 5) {
+                        this.filterScores = [{ label: '0', value: 0 }, { label: '4', value: 4 }];
+                    } else if(this.ratingStandard == 10) {
+                        this.filterScores = [{ label: '0', value: 0 }, { label: '9', value: 9 }];
+                    }
+                }
+                console.log("filter score",this.filterScores)
             } else {
                 this.isShow = false;
             }
@@ -230,8 +262,17 @@ export default {
         },
         pageCount(newVal) {
             console.log("new page count",newVal)
+        },
+        ratingStandard(newVal) {
+            if(newVal == 3) {
+                this.filterScores = [0,1];
+            } else if(newVal == 5) {
+                this.filterScores = [0,4];
+            } else if(newVal == 10) {
+                this.filterScores = [0,9];
+            }
+            console.log("filter score",this.filterScores)
         }
-
     },
     created() {
         this.markdownItInstance = new MarkdownIt({
@@ -292,6 +333,9 @@ export default {
             isAnswerEdit: false,
             ref_answer: "",
             isEditMode: false,
+            filterScores: [],
+            selectedCompareScore: null,
+            data_info_list: []
         }
     },
     methods: {
@@ -345,6 +389,9 @@ export default {
         //     return this.markdownItInstance.render(sanitizedInput);
         // },
         renderMarkdown(content) {
+            if(content == null) {
+                return ""
+            }
             // 处理代码块
             content = content.replace(/```([\s\S]*?)\n([\s\S]*?)```/g, function(match, lang, code) {
                 console.log("Matched language:", lang, code);
@@ -574,18 +621,13 @@ export default {
                 this.$store.dispatch("updateCurrentPage", nextPage);
                 this.$store.dispatch("updateIsLoading", true);
                 try {
-                    let category_list = null;
-                    if(this.selectedCategory) {
-                        category_list = this.changeObject2List(this.selectedCategory);
-                    }
-                    let tag_list = null;
-                    if(this.selectedTag) {
-                        tag_list = this.changeObject2List(this.selectedTag);
-                    }
-                    const response = await api.getPageById(nextPage,parseInt(localStorage.getItem("datasetID"),10),JSON.parse(localStorage.getItem("modelIDs")),tag_list,category_list);
+                    const data_info_list = JSON.parse(localStorage.getItem("data_info_list"));
+                    const info_id = data_info_list[nextPage-1];
+                    console.log("get data by datainfo id",data_info_list,info_id);
+                    const response = await api.getPageById(info_id,JSON.parse(localStorage.getItem("modelIDs")),parseFloat(this.selectedCompareScore));
                     console.log(" page info",response.data);
                     this.$store.dispatch("updateIsLoading", false);
-                    this.$store.dispatch("updatePageInfo", response.data["page_info"])
+                    this.$store.dispatch("updatePageInfo", response.data["page_info"]);
                     if(isJump) {
                         this.jumpPage = null;
                     }
@@ -597,9 +639,9 @@ export default {
             }
             
         },
-        async getTagList(datasetID, modelIds=[], catregoryIds=[]) {
+        async getTagList(catregoryIds=[]) {
             try {
-                const response = await api.getTagList(datasetID, modelIds,catregoryIds);
+                const response = await api.getTagList(parseInt(localStorage.getItem("datasetID"),10), JSON.parse(localStorage.getItem("modelIDs")),catregoryIds);
                 console.log("response",response.data);
                 this.tags = response.data;
             }
@@ -607,9 +649,9 @@ export default {
                 console.error('Error getting tag list:', error)
             }
         },
-        async getCategoryList(datasetID, modelIds, tagIds = []) {
+        async getCategoryList(tagIds = []) {
             try {
-                const response = await api.getCategoryList(datasetID, modelIds,tagIds);
+                const response = await api.getCategoryList(parseInt(localStorage.getItem("datasetID"),10), JSON.parse(localStorage.getItem("modelIDs")),tagIds);
                 console.log("response",response.data);
                 this.categories = response.data;
             }
@@ -623,18 +665,18 @@ export default {
                 
                 const tag_list = this.changeObject2List(this.selectedTag);
                 console.log("!!!!!!!!!!!!!!!! xuan ze le", tag_list)
-                this.getCategoryList(parseInt(localStorage.getItem("datasetID"),10),JSON.parse(localStorage.getItem("modelIDs")), tag_list);
+                this.getCategoryList(tag_list);
             } else {
-                this.getCategoryList(parseInt(localStorage.getItem("datasetID"),10),JSON.parse(localStorage.getItem("modelIDs")))
+                this.getCategoryList()
             }
         },
         onCategoryChange() {
             console.log("select:",this.changeObject2List(this.selectedCategory));
             if(this.selectedCategory) {
                 const category_list = this.changeObject2List(this.selectedCategory);
-                this.getTagList(parseInt(localStorage.getItem("datasetID"),10),JSON.parse(localStorage.getItem("modelIDs")), category_list);
+                this.getTagList( category_list);
             } else {
-                this.getTagList(parseInt(localStorage.getItem("datasetID"),10),JSON.parse(localStorage.getItem("modelIDs")));
+                this.getTagList();
             }
         },
         changeObject2List(object) {
@@ -686,24 +728,26 @@ export default {
         clearData() {
             this.selectedCategory = null;
             this.selectedTag = null;
-            this.categories = this.categoryList;
-            this.tags = this.tagList;
+            this.getCategoryList();
+            this.getTagList();
+            this.selectedCompareScore = null;
             this.queryData();
         },
         async queryData() {
             let category_list = null;
-            if(this.selectedCategory) {
+            if(this.selectedCategory && this.selectedCategory.length> 0) {
                 category_list = this.changeObject2List(this.selectedCategory);
             }
             let tag_list = null;
-            if(this.selectedTag) {
+            if(this.selectedTag && this.selectedTag.length > 0) {
                 tag_list = this.changeObject2List(this.selectedTag);
-            }
+            } 
             try {
                 this.$store.dispatch('updateIsLoading', true);
                 this.$store.dispatch("updateCurrentPage",1);
-                const res = await api.getFilterList(parseInt(localStorage.getItem("datasetID"),10),JSON.parse(localStorage.getItem("modelIDs")),tag_list,category_list);
+                const res = await api.getFilterList(parseInt(localStorage.getItem("datasetID"),10),JSON.parse(localStorage.getItem("modelIDs")),tag_list,category_list,parseFloat(this.selectedCompareScore));
                 console.log("query data",res.data);
+                this.$store.dispatch("updateDataInfoList",res.data["data_info_list"]);
                 this.$store.dispatch("updatePageCount",res.data["page_count"]);
                 this.$store.dispatch("updatePageInfo",res.data["page_info"]);
                 this.$store.dispatch('updateIsLoading', false);
@@ -748,6 +792,9 @@ export default {
         },
         changeMode() {
             this.isEditMode = !this.isEditMode;
+        },
+        onFilterScore() {
+            console.log(this.selectedCompareScore, this.filterScores)
         }
     }
 }
@@ -979,8 +1026,8 @@ export default {
     top:45px;
     position:fixed;
     width: 100%;
-    padding-left: 300px;
-    padding-right: 300px;
+    padding-left: 200px;
+    padding-right: 200px;
     font-family: 'Arial', sans-serif; 
     font-weight: bold;
     padding-top:5px;
@@ -1018,6 +1065,7 @@ export default {
     border-color: #fefbe0;
     margin-right: 10px;
     color: rgb(84, 84, 84);
+    border-left: 20px;
 }
 .custom-mode-button:hover {
     background-color: #fffdeb;
@@ -1032,9 +1080,13 @@ export default {
 <style scoped>
 
 ::v-deep .p-dropdown {
-  height: 25px !important; /* Set your desired item height */
+  height: 36px !important; /* Set your desired item height */
   align-items: center;
 }
+::v-deep .p-multiselect {
+    height: 36px !important; /* Set your desired item height */
+    align-items: center;
+  }
 ::v-deep .p-button {
     transition: background-color 0.3s !important; 
 

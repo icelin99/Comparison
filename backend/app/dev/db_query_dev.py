@@ -22,7 +22,7 @@ async def get_categories(dataset_id: int, model_ids: list, tag_ids: list = []):
     # 获取符合 dataset_id 和 model_ids 条件的 data_info_id 列表
     data_info_ids = await Result.filter(
         dataset_id=dataset_id,
-        model_id__in=model_ids
+        model_id=model_ids[0]
     ).distinct().values_list('data_info_id', flat=True)
     if tag_ids:
         data_info_ids_with_tags = await DataInfo.filter(
@@ -32,17 +32,19 @@ async def get_categories(dataset_id: int, model_ids: list, tag_ids: list = []):
         categories = await Category.filter(
             data_infos__id__in=data_info_ids_with_tags
         ).distinct().values('id', 'name')
+        print("get category list1",categories)
     else:
         categories = await Category.filter(
             data_infos__id__in=data_info_ids
         ).distinct().values('id', 'name')
+        print("get category list2",categories)
     return list(categories)
 
 async def get_tags(dataset_id: int, model_ids: list, category_ids: list = []):
     # 获取符合 dataset_id 和 model_ids 条件的 data_info_id 列表
     data_info_ids = await Result.filter(
         dataset_id=dataset_id,
-        model_id__in=model_ids
+        model_id=model_ids[0]
     ).distinct().values_list('data_info_id', flat=True)
     if category_ids:
         # 如果 category_ids 不为空，根据 category 筛选 data_info_id
@@ -55,11 +57,13 @@ async def get_tags(dataset_id: int, model_ids: list, category_ids: list = []):
         tags = await Tag.filter(
             data_infos__id__in=data_info_ids_with_categories
         ).distinct().values('id', 'name')
+        print("get tag list1",tags)
     else:
         # 如果 category_ids 为空，直接根据 data_info_id 获取 tags
         tags = await Tag.filter(
             data_infos__id__in=data_info_ids
         ).distinct().values('id', 'name')
+        print("get tag list2",tags)
     
     return list(tags)
 
@@ -93,96 +97,190 @@ async def get_tags_by_dataset_and_categories(datasetID: int = None, categoryIDs:
     tags_list = [{"id": tag.id, "name": tag.name} for tag in tags_set]
     return tags_list
 
-
-async def get_filter_results(datasetID, modelIDs: list , standard: int, TagIDs: list = None, categoryIDs: list = None, page: int = 1):
-    print(datasetID,modelIDs,standard,TagIDs,categoryIDs,page)
+"""
+筛选数据集，根据获取的dataset，多个模型和选择的评分标准来筛选。另外考虑是否选择了category和tag
+"""
+async def get_filter_results(datasetID, modelIDs: list , standard: int, tagIDs: list, categoryIDs: list):
+    print(datasetID,modelIDs,standard,tagIDs,categoryIDs)
     pageInfo = []
     first_data_info = None
     first_model_id = modelIDs[0]
     result_query = Result.filter(dataset_id=datasetID, model_id=first_model_id)
-    if TagIDs:
-        result_query = result_query.filter(data_info__tags__id__in=TagIDs)
-    if categoryIDs:
+    print("total1: ", await result_query.count())
+    if tagIDs is not None:
+        print("filter tag")
+        result_query = result_query.filter(data_info__tags__id__in=tagIDs)
+    if categoryIDs is not None:
+        print("filter category")
         result_query = result_query.filter(data_info__categories__id__in=categoryIDs)
     total_count = await result_query.count()
     print("total: ", total_count)
-    # debug #################
+    
     result_query_all = result_query.order_by('data_info__id')
     all_results = await result_query_all.distinct()
-    result_ids = [result.id for result in all_results]
     data_info_ids = [result.data_info_id for result in all_results]
-    print("All data_info ids:", data_info_ids)
-    #########################
-    page_size = 1  # 默认一页显示一条数据
-    offset = (page - 1) * page_size
-    result_query = result_query.order_by('data_info__id').offset(offset).limit(page_size)
-    first_result = await result_query.distinct()
-    if first_result:
-        first_data_info = first_result[0].data_info_id
-    print("first data into id",first_data_info)
-
-    page_info = {
-        "image_path": None,
-        "question": None,
-        "ref_answer": None,
-        "tags": [],
-        "categories": [],
-        "image_code": None,
-        "data_info_id": first_data_info,
-        "modelList": []
-    }
-
-    for modelID in modelIDs:
-        result_query = Result.filter(dataset_id=datasetID,model_id=modelID, data_info_id = first_data_info)
-
-        results = await result_query.distinct()
-
-        model_names = await ModelName.filter(id=modelID).values_list('id', 'name')
-        model_id_to_name = {model_id: name for model_id, name in model_names}
-        for result in results:
-            data_info = await result.data_info
-            image_abs_path = data_info.image_abs_path
-            mime_type = get_mime_type(image_abs_path)
-            encoded_image = get_image_as_base64(image_abs_path)
-            score = None
-            if standard == 3:
-                score = result.score_3
-            elif standard == 5:
-                score = result.score_5
-            else: 
-                score = result.score_10
-            
-            if not page_info["image_path"]:
-                page_info.update({
-                    "image_path": data_info.image_path,
-                    "question": data_info.question,
-                    "ref_answer": data_info.ref_answer,
-                    "tags": [tag.name for tag in await data_info.tags],
-                    "categories": [category.name for category in await data_info.categories],
-                    "image_code": f"data:{mime_type};base64,{encoded_image}",
-                    "data_info_id": first_data_info
-                })
-
-            model_entry = {
-                "model_id": result.model_id,
-                "model_name": model_id_to_name.get(result.model_id, "Unknown Model"),
-                "answer": result.answer,
-                "score": score,
-                "standard": result.standard
+    if len(data_info_ids) == 0:
+        return {
+            "total_page": 0,
+            "data_info_list": data_info_ids,
+            "page_info": {
+                "image_path": None,
+                "question": None,
+                "ref_answer": None,
+                "tags": [],
+                "categories": [],
+                "image_code": None,
+                "data_info_id": None,
+                "modelList": []
             }
+        }
+ 
+    first_data_info_id = data_info_ids[0]
+    print("All data_info ids:", data_info_ids)
+    
 
-            if result.standard in [5, 10]:
-                model_entry["reason"] = result.reason
-
-            page_info["modelList"].append(model_entry)
-
+    
+    page_info = await get_info_by_datainfo_id(first_data_info_id,modelIDs,standard)
+    
     return {
         "total_page": total_count,
+        "data_info_list": data_info_ids,
         "page_info": page_info  # 前端默认只显示一页 故只传一条数据
     }
 
 
+"""
+在原来的筛选基础上加上filter_score，为0则选出分数为0的结果，为-1则筛选出模型1分数小于模型2的结果，为-2则筛选出模型2分数小于模型1的结果
+"""
+async def get_filter_result_plus(datasetID, modelIDs: list , standard: int, tagIDs: list, categoryIDs: list, filter_score: float):
+    # 如果filter_score =-1 , 第一个模型分数高，= -2， 第二个模型分数高
+    print("filter by score",filter_score)
+    data_infos = await DataInfo.filter(dataset_id=datasetID)
+    if tagIDs is not None:
+        data_infos = await DataInfo.filter(tags__id__in=tagIDs)
+    if categoryIDs is not None:
+        data_infos = await DataInfo.filter(categories__id__in=categoryIDs)
+    # 先筛选出对应的data infos
+    # 然后计算分数匹配的data info
+    info_id = []
+    if len(modelIDs) == 2 and filter_score < 0: # 两两比较
+        for data_info in data_infos:
+            result1 = await Result.get(dataset_id=datasetID,model_id=modelIDs[0],data_info_id=data_info.id)
+            result2 = await Result.get(dataset_id=datasetID,model_id=modelIDs[1],data_info_id=data_info.id)
+            if get_score_by_standard(result1,standard) is not None and get_score_by_standard(result2,standard) is not None:
+                if compare_score(result1,result2,standard,filter_score):
+                    if data_info.id not in info_id:
+                        info_id.append(data_info.id)
+    else: # 筛选分数为0和最大的情况
+        for modelID in modelIDs:
+            for data_info in data_infos:
+                result = await Result.filter(dataset_id=datasetID,model_id=modelID,data_info_id=data_info.id)
+                for re in result:
+                    if get_score_by_standard(re,standard) == filter_score:
+                        if data_info.id not in info_id:
+                            info_id.append(data_info.id)
+    print("filtered datainfo id:",info_id,len(info_id))
+    page_count = len(info_id)
+    if len(info_id) == 0:
+        return {
+            "total_page": 0,
+            "data_info_list": info_id,
+            "page_info": {
+                "image_path": None,
+                "question": None,
+                "ref_answer": None,
+                "tags": [],
+                "categories": [],
+                "image_code": None,
+                "data_info_id": None,
+                "modelList": []
+            }
+        }
+    info_id.sort()
 
+    
+
+    data_info_id = info_id[0]
+
+    page_info = await get_info_by_datainfo_id(data_info_id,modelIDs, standard, filter_score)
+
+    return {
+        "total_page": page_count,
+        "data_info_list":info_id,
+        "page_info": page_info
+    }
+
+
+"""
+返回供前端显示的page info的信息格式
+"""
+async def get_info_by_datainfo_id(datainfoID: int,modelIDs: list, standard: int,filter_score: float = None):
+    print("get info by datainfo if", datainfoID, modelIDs, filter_score)
+    data_info_query = await DataInfo.get(id=datainfoID)
+    image_abs_path = data_info_query.image_abs_path
+    mime_type = get_mime_type(image_abs_path)
+    encoded_image = get_image_as_base64(image_abs_path)
+    page_info = {
+        "image_path": data_info_query.image_path,
+        "question": data_info_query.question,
+        "ref_answer": data_info_query.ref_answer,
+        "tags": [tag.name for tag in await data_info_query.tags],
+        "categories": [category.name for category in await data_info_query.categories],
+        "image_code": f"data:{mime_type};base64,{encoded_image}",
+        "data_info_id": datainfoID,
+        "modelList": []
+    }
+    for index, modelId in enumerate(modelIDs, start=1):
+        result = await Result.get(data_info_id=datainfoID,model_id=modelId)
+        model_ = await ModelName.get(id=modelId)
+        if filter_score == None or filter_score<0 or get_score_by_standard(result,standard) == filter_score:
+            page_info["modelList"].append({
+                "index": index,
+                "model_id": modelId,
+                "model_name": model_.name,
+                "answer": result.answer,
+                "score": get_score_by_standard(result,standard),
+                "standard": result.standard
+            })
+    return page_info
+
+
+"""
+得到result对应评分标准下的分数
+"""
+def get_score_by_standard(result:object,standard:int):
+    if standard == 3:
+        return result.score_3
+    elif standard == 5:
+        return result.score_5
+    elif standard == 10:
+        return result.score_10
+    else:
+        return None
+
+def compare_score(result1: object,result2: object, standard, filter_score:float):
+    score1 = get_score_by_standard(result1,standard)
+    score2 = get_score_by_standard(result2,standard)
+    if(filter_score == -1):
+        # 筛选出模型1更高的
+        if score1 is not None and score2 is not None and score1 > score2:
+            return True
+        else:
+            return False
+    elif(filter_score == -2):
+        if score1 is not None and score2 is not None and score1 < score2:
+            return True
+        else:
+            return False
+    else:
+        print("compare score 出错啦")
+        return False
+
+
+
+"""
+得到图片的mime type
+"""
 def get_mime_type(file_path):
     # 检查文件扩展名并确定 MIME 类型
     ext = os.path.splitext(file_path)[1].lower()
@@ -196,6 +294,10 @@ def get_mime_type(file_path):
     mime_type = mime_types[ext]
     return mime_type
 
+
+"""
+保存每页的评分结果
+"""
 async def save_page_by_page(page, data_info_id,datasetID, modelID, standard, score: float = None):
     result_query = Result.filter(dataset_id=datasetID,model_id=modelID,data_info_id=data_info_id)
     print("!!!!!!!!!!!!!!!!!!!!!!!!")
@@ -219,44 +321,46 @@ async def save_page_by_page(page, data_info_id,datasetID, modelID, standard, sco
     return "save failed"
 
 
-async def read_file(file,filetype):
+"""
+批量上传results或者scores，filepath对应文件夹，filetype为result或者score
+"""
+async def read_file(filepath,filetype):
     """
-    这个函数处理从前端传来的文件
+    这个函数处理从前端传来的文件夹
     """
-    filename = file.filename
-    file_extension = filename.split('.')[-1]
-    print('--',filetype)
-    try:
-        file_data = await file.read()
-        file_content = file_data.decode('utf-8')
-        if file_extension == 'json':
-            json_data = json.loads(file_content)
-            if isinstance(json_data, list):
-                score_file_requests = [ScoreFileRequest(**item) for item in json_data]
-                await update_db_by_data(score_file_requests, filename)
-                return {"filename": file.filename, "message": "upload successfully", "details": [request.dict() for request in score_file_requests]}
-            else:
-                score_file_request = ScoreFileRequest(**json_data)
-                await update_db_by_data(score_file_request, filename)
-                return {"filename": file.filename, "message": "upload successfully", "details": score_file_request.dict()}
-        
-        elif file_extension == 'jsonl':
-            print("jsonl")
-            lines = file_content.splitlines()
-            score_file_requests = []
-            for line in lines:
-                try:
-                    json_data = json.loads(line)
-                    score_file_request = ScoreFileRequest(**json_data)
-                    score_file_requests.append(score_file_request)
-                    await update_db_by_data(score_file_requests, filename)
-                except json.JSONDecodeError as e:
-                    print(f"JSON decode error for line: {line} - {e}")
-                    raise e
-            return {"filename": file.filename, "message": "upload successfully"}
-    except Exception as e:
-        print("fail to read file")
-        return {"error": f"Failed to process file: {str(e)}"}
+    if os.path.exists(filepath):
+        dir_name = os.path.basename(os.path.normpath(filepath))
+        try:
+            dataset = await Dataset.get(name=dir_name)
+            for result_name in os.listdir(filepath):
+                result_path = os.path.join(filepath, result_name)
+                if filetype == "result":
+                    if "results" not in result_path:
+                        return {"error": "result路径错误(应该在'results'目录下)"}
+                    try:
+                        model = await ModelName.get(name=result_name)
+                        print(f"model {result_name} 存在")
+                        # 这个modelname存在
+                        continue
+                    except DoesNotExist:
+                        print("model 不存在 新建")
+                        result_res = await add_result(dataset, result_name, result_path)
+                        if "error" in result_res:
+                            return result_res
+                elif filetype == "score":
+                    if "results_score" not in result_path:
+                        return {"error": "score路径错误(应该在'results_socre'目录下)"}
+                    score_res = await add_score(dataset,result_name,result_path)
+                    if "error" in score_res:
+                        return score_res
+                else:
+                    return {"error": "文件类型错误"}
+            return {"success": "批量上传成功"}
+        except DoesNotExist:
+            return {"error": "dataset不存在"}
+    else:
+        return {"error": "路径不存在"}
+   
     
 async def update_db_by_data(data: List[ScoreFileRequest],result_name):
     print("enter the udpate func")
@@ -294,6 +398,10 @@ async def update_db_by_data(data: List[ScoreFileRequest],result_name):
             print("filename and question does not exist!!")
             pass    
 
+
+"""
+上传dataset的路径，主要更新datainfo的信息。如果这个dataset存在，则删除掉原来的信息。再重新添加datainfo，tags， categories，results，scores。result和score都固定在/chenzixuan/目录下
+"""
 async def update_dataset_by_path(dataset_dir):
     # 检查地址是否存在
     if os.path.exists(dataset_dir):
@@ -338,6 +446,9 @@ async def update_dataset_by_path(dataset_dir):
         return {"error": "路径不存在"}
 
 
+"""
+更新result信息。如果存在，先删除掉原来的信息再新加
+"""
 async def update_result_by_path(result_path):
     # 检查地址是否存在
     if os.path.exists(result_path):
@@ -350,12 +461,21 @@ async def update_result_by_path(result_path):
             try:
                 dataset = await Dataset.get(name=dataset_name)
                 try:
+                    model_instance = await ModelName.get(name=file_name)
+                    print("model存在，先删掉")
+                    del_result_res = await del_result(dataset.id,model_instance.id)
+                    if "error" in del_result_res:
+                        return del_result_res  # 返回删除时的错误信息
                     result = await add_result(dataset, file_name,result_path)
                     if "error" in result:
                         return result  # 返回错误信息
-                    return {"success": "添加 result 结果成功！"}
-                except Exception as e:
-                    return {"error": str(e)}
+                except DoesNotExist:
+                    print("model不存在，新加")
+                    result = await add_result(dataset, file_name,result_path)
+                    if "error" in result:
+                        return result  # 返回错误信息
+                return {"success": "添加 result 结果成功！"}
+
             except DoesNotExist:
                 return {"error": "dataset 不存在"}
         else:
@@ -363,6 +483,10 @@ async def update_result_by_path(result_path):
     else:
         return {"error": "路径不存在"}
 
+
+"""
+更新result信息。如果存在，先删除掉原来的信息再新加
+"""
 async def update_score_by_path(score_path):
     # 检查地址是否存在
     if os.path.exists(score_path):
@@ -377,11 +501,10 @@ async def update_score_by_path(score_path):
                 dataset = await Dataset.get(name=dataset_name)
                 try:
                     model = await ModelName.get(name=model_name,dataset=dataset)
-                    try:
-                        await add_score(dataset, file_name,score_path)
-                        return {"success": "添加score结果成功！"}
-                    except Exception as e:
-                        return {"error": e} 
+                    score_res = await add_score(dataset, file_name,score_path)
+                    if "error" in score_res:
+                        return score_res
+                    return {"success": "添加score结果成功！"}
                 except DoesNotExist:
                     return {"error": "model未被定义"}
             except DoesNotExist:
@@ -392,6 +515,10 @@ async def update_score_by_path(score_path):
     else:
         return {"error": "路径不存在"}
 
+
+"""
+批量下载带有分数的结果，最终形成一个zip。
+"""
 async def fetch_save_file(datasetID, modelIDs,standard):
 
     dataset = await Dataset.get(id=datasetID)
@@ -427,7 +554,7 @@ async def fetch_save_file(datasetID, modelIDs,standard):
                 }
                 data.append(entry)
             
-            file_name = f"results_{dataset.name}_{model.name}_{standard_model.name}.json"
+            file_name = f"{model.name}_{standard_model.name}.json"
             try:
                 file_content = json.dumps(data, ensure_ascii=False).encode('utf-8')
                 zip_file.writestr(file_name, file_content)
@@ -446,6 +573,10 @@ async def fetch_save_file(datasetID, modelIDs,standard):
     }
     return StreamingResponse(zip_buffer, media_type="application/x-zip-compressed", headers=headers)
 
+
+"""
+下载dataset的dataset_info信息
+"""
 async def fetch_save_dataset(datasetID):
     dataset = await Dataset.get(id=datasetID)
     data_infos = await DataInfo.filter(dataset_id = datasetID).prefetch_related('categories', 'tags').values(
@@ -471,17 +602,23 @@ async def fetch_save_dataset(datasetID):
    
 
 
-
+"""
+检查新添加的dataset是否符合要求
+"""
 def check_dataset_info(dataset_dir):
     required_keys = {'filename', 'question', 'category', 'tag'}
     base_image_path = os.path.join(dataset_dir,'images')
     file_path = os.path.join(dataset_dir,"json_files","dataset_info.json")
-    try:
-        with open(file_path,'r') as file:
-            data = json.load(file)
-    except json.JSONDecodeError:
-        print("文件不是有效的JSON格式")
-        return "文件不是有效的JSON格式"
+    if not os.path.exists(file_path):
+        return " dataset_info.json文件不存在"
+    else:
+        try:
+            with open(file_path,'r') as file:
+                data = json.load(file)
+        except json.JSONDecodeError:
+            print("文件不是有效的JSON格式")
+            return "文件不是有效的JSON格式"
+    
     
     # 检查是否是一个列表
     if not isinstance(data, list):
@@ -495,10 +632,13 @@ def check_dataset_info(dataset_dir):
             return "缺少所需的键"
         if not os.path.exists(os.path.join(base_image_path, item['filename'])):
             print(f"文件路径不存在: {os.path.join(base_image_path, item['filename'])}")
-            return "文件路径不存在"
+            return f"filename不存在：{item['filename']}"
 
     return "OK"
 
+"""
+检查新添加的result是否符合要求
+"""
 def check_result_file(dataset_dir,file_path):
     required_keys = {'filename', 'question', 'result'}
     base_image_path = os.path.join(dataset_dir,'images')
@@ -527,10 +667,13 @@ def check_result_file(dataset_dir,file_path):
             return "缺少所需的键"
         if not os.path.exists(os.path.join(base_image_path, item['filename'])):
             print(f"文件路径不存在: {os.path.join(base_image_path, item['filename'])}")
-            return "文件路径不存在"
+            return f"filename不存在：{item['filename']}"
 
     return "OK"
 
+"""
+检查新添加的score是否符合要求
+"""
 def check_score_file(dataset_dir,score_path,score_name,dataset_name):
     required_keys = {'filename', 'question', 'score'}
     base_image_path = os.path.join(dataset_dir,'images')
@@ -559,13 +702,16 @@ def check_score_file(dataset_dir,score_path,score_name,dataset_name):
             return "缺少所需的键"
         if not os.path.exists(os.path.join(base_image_path, item['filename'])):
             print(f"文件路径不存在: {os.path.join(base_image_path, item['filename'])}")
-            return "文件路径不存在"
+            return f"filename不存在：{item['filename']}"
 
     # 检查 score filename 是否在 result 中有对应的文件名
     # if check_filename_in_directory(score_name,dataset_name) == False:
     #     return "在result中没有对应的模型名"
     return "OK"
 
+"""
+检查filename是否在/chenzixuan/目录下
+"""
 def check_filename_in_directory(filename,dataset_name):
     stripped_filename = filename.replace('-xiaomi_standard','').replace('-gpt4_ten_point','').replace('-gpt4_five_point','').replace('.jsonl','').replace('.json','')
     print("check name", stripped_filename)
@@ -575,6 +721,9 @@ def check_filename_in_directory(filename,dataset_name):
             return True
     return False
 
+"""
+更改ref answer
+"""
 async def save_ref_answer(data_info_id, ref_answer):
     data_info = await DataInfo.get(id=data_info_id)
     print("save ref answer:",data_info_id,)
@@ -586,7 +735,9 @@ async def save_ref_answer(data_info_id, ref_answer):
 
     return {"success": "Ref answer saved successfully"}
 
-
+"""
+计算准确率
+"""
 async def get_accuracy_table(datasetIDs, modelIDs, standard):
     # 目前只允许一个dataset
     if isinstance(datasetIDs,(int, float)):
@@ -668,7 +819,9 @@ async def get_accuracy_table(datasetIDs, modelIDs, standard):
     return accuracy_table    
 
 
-
+"""
+删除dataset喝碎影的所有datainfo，results和分数
+"""
 async def del_dataset(datasetID):
     print("delete ",datasetID)
     try:
@@ -683,6 +836,9 @@ async def del_dataset(datasetID):
     except DoesNotExist:
         return {"error":"dataset不存在"}
 
+"""
+删除result
+"""
 async def del_result(datasetID, modelID):
     dataset = await Dataset.get(id=datasetID)
     model = await ModelName.get(id=modelID, dataset = dataset)
@@ -692,7 +848,10 @@ async def del_result(datasetID, modelID):
         return {"success": "删除result结果成功！"}
     except Exception as e:
         return {"error": e}
-        
+
+"""
+更改对应数据集下的模型名
+"""       
 async def change_modelname(datasetID, modelID, modelname):
     try:
         dataset = await Dataset.get(id=datasetID)

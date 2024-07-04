@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_URL = 'http://localhost:8003/'
+const API_URL = 'http://101.230.144.192:10069/api/'
 // 'http://localhost:8003/'
 // 'http://101.230.144.192:10069/api/'
 
@@ -35,9 +35,10 @@ export default {
                 categoryIDs: categoryIDs
         })
     },
-    getFilterList(datasetID = 1, modelIDs, tagIDs = [], categoryIDs = []) {
-        tagIDs = tagIDs? tagIDs: [];
-        categoryIDs = categoryIDs ? categoryIDs: [];
+    getFilterList(datasetID = 1, modelIDs, tagIDs = null, categoryIDs = null, score = null) {
+        tagIDs = tagIDs == []? null: tagIDs;
+        categoryIDs = categoryIDs == [] ? null: categoryIDs;
+        console.log("get filter list tag category",tagIDs, categoryIDs)
         const standard = parseInt(localStorage.getItem("standard"),10)
         console.log("get filter list post: ", datasetID, modelIDs, standard, tagIDs, categoryIDs)
         return axios.post(API_URL + 'filter/', {
@@ -45,17 +46,16 @@ export default {
                 modelIDs: modelIDs,
                 standard: standard,
                 tagIDs: tagIDs,
-                categoryIDs: categoryIDs
+                categoryIDs: categoryIDs,
+                score: score
         })
     },
-    getPageById(pageId,datasetID,modelIDs,tagIDs = [], categoryIDs = []) {
+    getPageById(datainfoID,modelIDs, score = null) {
         const standard = parseInt(localStorage.getItem("standard"),10)
-        return axios.post(`${API_URL}page/${pageId}/`, {
-            datasetID: datasetID,
+        return axios.post(`${API_URL}page/${datainfoID}/`, {
             modelIDs: modelIDs,
             standard: standard,
-            tagIDs: tagIDs,
-            categoryIDs: categoryIDs
+            score: score
         })
     },
     saveById(pageId,data_info_id, modelList) {
@@ -70,21 +70,9 @@ export default {
     },
     uploadFile(file, filetype) {
         console.log("----", filetype)
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('filetype', filetype);
-        console.log(formData)
-        console.log("form data -----");
-        for (const pair of formData.entries()) {
-            console.log(`${pair[0]}: ${pair[1]}`);
-        }
         return axios.post(`${API_URL}upload-file/`, {
             file: file,
-            filetype: filetype
-        }, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            }
+            type: filetype
         })
     },
     uploadFilePath(file,type) {

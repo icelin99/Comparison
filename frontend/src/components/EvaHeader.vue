@@ -28,16 +28,16 @@
            
             <span class="p-text-secondary block mb-5">请选择上传形式</span>
             <div class="mt-3 mb-3 flex align-items-center">
-                <RadioButton v-model="uploadMethod" inputId="uploadFile" name="uploadMethod" value="file" :disabled="true" />
-                <label for="ingredient1" class="ml-2">上传文件</label>
+                <RadioButton v-model="uploadMethod" inputId="uploadFile" name="uploadMethod" value="file" />
+                <label for="ingredient1" class="ml-2">批量上传文件</label>
             </div>
             <div class="mt-3 mb-3 flex align-items-center">
                 <RadioButton v-model="uploadMethod" inputId="uploadPath" name="uploadMethod" value="path" />
                 <label for="ingredient2" class="ml-2">上传绝对地址</label>
             </div>
             <div v-if="uploadMethod === 'file'" class="mt-5 mb-5">
-                <input type="file" name="file" accept=".json,.jsonl" @change="onFileUpload" />
-                <p>文件大小请不要超过10M</p>
+                <P>请输入批量文件的文件夹地址</P>
+                <InputText v-model="filePath" :style="{width: '18rem'}" placeholder="请输入绝对地址" @blur="validatePath"/>
                 <div class="mt-3 mb-3">
                     <RadioButton v-model="fileType" inputId="type4" name="fileType" value="result" />
                     <label for="ingredient1" class="ml-2">result</label>
@@ -172,7 +172,7 @@ export default {
         CodeBlockRenderer,
     },
     computed: {
-        ...mapGetters(["filterData","alreadySubmit","dataset","selectSubmitted"])
+        ...mapGetters(["alreadySubmit","dataset","selectSubmitted"])
     },
     watch: {
     },
@@ -226,17 +226,21 @@ export default {
         async submitFile() {
             console.log("submit",this.uploadMethod,this.uploadedFile,this.filePath);
             if(this.uploadMethod == 'file')  {
-                if(this.uploadedFile) {
+                if(this.filePath) {
                     if(this.fileType) {
                         try {
-                            const res = await api.uploadFile(this.uploadedFile,this.fileType);
-                            if(res.data.error){
-                                alert("上传失败")
-                            }else{
-                                console.log('上传成功:', res.data);
+                            this.$store.dispatch('updateIsLoading', true);
+                            const res = await api.uploadFile(this.filePath,this.fileType);
+                            if(res.data["success"]) {
+                                window.location.reload();
+                                this.showToast('success','Success',res.data["success"])
+                            } else if(res.data["error"]) {
+                                this.showToast('error','Error', res.data["error"])
                             }
+                            this.$store.dispatch('updateIsLoading', false);
                             this.fileShow = false;
-                            this.uploadedFile = null;
+                            this.filePath = null;
+                            this.fileType = null;
                         }
                         catch(error) {
                             alert('上传失败:', error)
@@ -419,7 +423,7 @@ export default {
             })
         },
         showToast(severity,summary,detail){
-            this.$refs.toast.add({ severity: severity, summary: summary, detail: detail, life: 3000 })
+            this.$refs.toast.add({ severity: severity, summary: summary, detail: detail, life: 6000 })
         },
         goMarkdown() {
             this.showMarkdown = true;
@@ -446,7 +450,7 @@ export default {
                         }
                         this.$store.dispatch('updateIsLoading', false);
                     } else {
-                        this.showToast('error','Error', "请输出要删除的dataset")
+                        this.showToast('error','Error', "请输入要删除的dataset")
                     }
                     
                 } else if(this.deleteType == "result") {
@@ -463,7 +467,7 @@ export default {
                         }
                         this.$store.dispatch('updateIsLoading', false);
                     } else {
-                        this.showToast('error','Error', "请输出要删除的dataset和model")
+                        this.showToast('error','Error', "请输入要删除的dataset和model")
                     }
                 }
             } else {
