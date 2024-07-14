@@ -47,6 +47,8 @@ export default {
                 standard: standard,
                 tagIDs: tagIDs,
                 categoryIDs: categoryIDs,
+                score: score,
+                categoryIDs: categoryIDs,
                 score: score
         })
     },
