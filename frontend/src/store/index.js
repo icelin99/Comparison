@@ -74,6 +74,7 @@ export default createStore({
             state.modelList = list;
         },
         set_dataInfoList(state,list) {
+            console.log('datainfolist',list)
             state.dataInfoList = list;
             localStorage.setItem("data_info_list",JSON.stringify(list));
         }

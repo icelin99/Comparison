@@ -48,8 +48,6 @@ export default {
                 tagIDs: tagIDs,
                 categoryIDs: categoryIDs,
                 score: score,
-                categoryIDs: categoryIDs,
-                score: score
         })
     },
     getPageById(datainfoID,modelIDs, score = null) {

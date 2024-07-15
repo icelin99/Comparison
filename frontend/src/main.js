@@ -9,31 +9,38 @@ import 'primeicons/primeicons.css';
 import PrimeVue from 'primevue/config';
 import ToastService from 'primevue/toastservice';
 
-import VMdEditor from '@kangc/v-md-editor';
-import '@kangc/v-md-editor/lib/style/base-editor.css';
 import githubTheme from '@kangc/v-md-editor/lib/theme/github.js';
 import '@kangc/v-md-editor/lib/theme/style/github.css';
 import hljs from 'highlight.js';
 import 'katex/dist/katex.min.css';
 
-import Antd from  "ant-design-vue";
-import 'ant-design-vue/dist/reset.css';
+
+import ElementPlus from 'element-plus' //全局引入
+import 'element-plus/dist/index.css'
 
 
-VMdEditor.use(githubTheme, {
-  Hljs: hljs,
-});
 
 const app = createApp(App);
 
+// 监听beforeunload事件
+window.addEventListener('beforeunload', () => {
+  localStorage.setItem('isPageReloading', 'true')
+})
+
+window.addEventListener('load', () => {
+  if (localStorage.getItem('isPageReloading') === 'true') {
+    localStorage.removeItem('isPageReloading')
+    router.replace('/')
+  }
+})
+
 app.use(PrimeVue);
+app.use(ElementPlus);
 app.use(ToastService);
 
 app.use(store);
 app.use(router);
 
-app.use(VMdEditor);
-app.use(Antd);
 
 
 app.mount('#app');

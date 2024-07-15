@@ -1,5 +1,5 @@
 <template>
-<div>
+<div class="hide-scrollbar">
   <LoadingComponent />
   <EvaHeader class="header" />
   <div class="content">
@@ -40,6 +40,10 @@ export default {
   color: #2c3e50;
   margin-top: 10px;
   padding: 0 20px 10px 0;
+}
+body::-webkit-scrollbar {
+  width: 0;
+  background: transparent;
 }
 
 

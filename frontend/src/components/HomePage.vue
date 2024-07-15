@@ -40,6 +40,7 @@
         </StepperPanel>
     </Stepper>
     <Button label="Submit" v-if="canSubmit" icon="pi pi-check" iconPos="right" style="background-color: mediumaquamarine;border-color: aliceblue;"   @click="submitData" />
+    <Button label="Submit2Voice" v-if="canSubmit" icon="pi pi-check" iconPos="right" style="background-color: mediumaquamarine;border-color: aliceblue;"   @click="submitData2" />
     </div>
     </template>
     
@@ -224,7 +225,35 @@
                 return true;
             }
             return false;
+        },
+
+    async submitData2() {
+        this.canSubmit = false;
+        // 存储数据到 local storage
+        const dataset_ = this.datasets.find(item => item.id==this.selectedDataset)
+        this.$store.dispatch("updateDataset",dataset_.name)
+        localStorage.setItem("dataset",dataset_.name);
+        localStorage.setItem("datasetID", this.selectedDataset.toString())
+        localStorage.setItem("modelIDs", JSON.stringify(this.changeObject2List(this.selectedModel)))
+        // get category and tag
+        try {
+            this.$store.dispatch('updateIsLoading', true);
+            this.$store.dispatch("updateCurrentPage",1)
+            const response = await api.getFilterList(parseInt(localStorage.getItem("datasetID"),10), JSON.parse(localStorage.getItem("modelIDs")));
+            console.log("get li list and first page",response.data);
+            this.$store.dispatch("updatePageCount",response.data["page_count"]);
+            this.$store.dispatch("updatePageInfo",JSON.parse(JSON.stringify(response.data["page_info"])));
+            this.$store.dispatch("updateSelectSubmitted", true);
+            this.$store.dispatch("updateAlreadySubmit", true);
+            this.$store.dispatch('updateDataInfoList',response.data["data_info_list"]);
+            this.$store.dispatch('updateIsLoading', false);
+            this.$router.push({name:'ImageVoice'});
         }
+        catch (error) {
+            console.error('Error getting id list and first page error:', error)
+        }
+        
+    },
     
       }
     }
