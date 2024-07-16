@@ -274,6 +274,16 @@ def get_mime_type(file_path):
             '.png': 'image/png',
             '.gif': 'image/gif',
             '.webp': 'image/webp',
+            '.bmp': 'image/bmp',
+            '.tiff': 'image/tiff',
+            '.tif': 'image/tiff',
+            '.svg': 'image/svg+xml',
+            '.ico': 'image/vnd.microsoft.icon',
+            '.avif': 'image/avif',
+            '.heic': 'image/heic',
+            '.heif': 'image/heif',
+            '.jxr': 'image/vnd.ms-photo',
+            '.psd': 'image/vnd.adobe.photoshop'
         }
         mime_type = mime_types[ext]
         return mime_type
