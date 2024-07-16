@@ -1,7 +1,6 @@
 <template>
     <div>
-    
-    <Stepper v-if="!alreadySubmit">
+    <Stepper v-if="!selectSubmitted">
         <StepperPanel >
             <template #header="{ index }">
                 <div class="header-container">
@@ -52,7 +51,6 @@
     import Dropdown from 'primevue/dropdown';
     import cls_info from '../../public/assets/cls_info.json';
     import MultiSelect from 'primevue/multiselect';
-    import Menubar from 'primevue/menubar';
     import api from '@/utils/api';
     import {mapGetters} from "vuex"
     
@@ -63,8 +61,7 @@
         StepperPanel,
         Button,
         Dropdown,
-        MultiSelect,
-        Menubar
+        MultiSelect
       },
       data() {
         return {
@@ -93,10 +90,10 @@
         
       },
       computed: {
-        ...mapGetters(["alreadySubmit"])
+        ...mapGetters(["selectSubmitted"])
       },
       watch: {
-            alreadySubmit(newVal) {
+            selectSubmitted(newVal) {
                 if(newVal == false) {
                     this.ClearStepper();
                 }
@@ -108,7 +105,7 @@
             this.canSubmit = false;
             // 存储数据到 local storage
             const dataset_ = this.datasets.find(item => item.id==this.selectedDataset)
-            this.$store.dispatch("updateDataset",dataset_.name)
+            this.$store.dispatch("updateDatasetName",dataset_.name)
             localStorage.setItem("dataset",dataset_.name);
             localStorage.setItem("datasetID", this.selectedDataset.toString())
             localStorage.setItem("modelIDs", JSON.stringify(this.changeObject2List(this.selectedModel)))
@@ -121,7 +118,6 @@
                 this.$store.dispatch("updatePageCount",response.data["page_count"]);
                 this.$store.dispatch("updatePageInfo",JSON.parse(JSON.stringify(response.data["page_info"])));
                 this.$store.dispatch("updateSelectSubmitted", true);
-                this.$store.dispatch("updateAlreadySubmit", true);
                 this.$store.dispatch('updateIsLoading', false);
                 this.$store.dispatch('updateDataInfoList',response.data["data_info_list"]);
             }
@@ -231,7 +227,7 @@
         this.canSubmit = false;
         // 存储数据到 local storage
         const dataset_ = this.datasets.find(item => item.id==this.selectedDataset)
-        this.$store.dispatch("updateDataset",dataset_.name)
+        this.$store.dispatch("updateDatasetName",dataset_.name)
         localStorage.setItem("dataset",dataset_.name);
         localStorage.setItem("datasetID", this.selectedDataset.toString())
         localStorage.setItem("modelIDs", JSON.stringify(this.changeObject2List(this.selectedModel)))
@@ -244,7 +240,6 @@
             this.$store.dispatch("updatePageCount",response.data["page_count"]);
             this.$store.dispatch("updatePageInfo",JSON.parse(JSON.stringify(response.data["page_info"])));
             this.$store.dispatch("updateSelectSubmitted", true);
-            this.$store.dispatch("updateAlreadySubmit", true);
             this.$store.dispatch('updateDataInfoList',response.data["data_info_list"]);
             this.$store.dispatch('updateIsLoading', false);
             this.$router.push({name:'ImageVoice'});

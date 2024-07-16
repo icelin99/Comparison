@@ -330,7 +330,7 @@ export default {
 .custom-table th.dataset-header {
   background-color: rgb(238, 243, 248);
   text-align: center;
-  width: 5vb;
+  max-width: 5vb;
   left: 0;
 }
 .custom-table th.model-header{

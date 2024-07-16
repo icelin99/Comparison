@@ -1,6 +1,6 @@
 <template>
 <div style="width: 100%;">
-    <div v-if="isShow" class="ct-container">
+    <div v-if="selectSubmitted" class="ct-container">
         <div>Category<MultiSelect :options="categories" v-model="selectedCategory"  optionValue="id" optionLabel="name" filter showClear @change="onCategoryChange(index)" :style="{ minWidth: '150px' }" /></div>
         <div>Tag <MultiSelect :options="tags" v-model="selectedTag"  optionValue="id" optionLabel="name" filter showClear @change="onTagChange(index)" :style="{ minWidth: '150px' }"  />
         </div>
@@ -14,7 +14,7 @@
             <Button class="custom-mode-button" @click="changeMode">{{ isEditMode ? '切换为预览模式' : '切换为打分模式' }}</Button>
         </div>
     </div>
-    <div v-if="isShow" style="display: flex; flex-direction: row; width: 100%; max-height: calc(100% - 90px); overflow: auto; position:fixed; top: 95px; bottom:65px; overflow-x:hidden;">
+    <div v-if="selectSubmitted" style="display: flex; flex-direction: row; width: 100%; max-height: calc(100% - 90px); overflow: auto; position:fixed; top: 95px; bottom:65px; overflow-x:hidden;">
         <div :style="{width: '40%', height: '100%'}">
             <div style="display: flex; flex-direction: column; width: '100%'; height: '100%'; align-items: center;">
                 <div class="image-container" @dblclick="openModal('image', img_path)">
@@ -109,7 +109,7 @@
             </div>
         </div>
     </div>
-    <div v-if="isShow&&!isModalOpen" class="page-change" style="display: flex; flex-direction: column; width: '100%';">
+    <div v-if="selectSubmitted&&!isModalOpen" class="page-change" style="display: flex; flex-direction: column; width: '100%';">
         
         <div style="display: flex; flex-direction: row; width: '100%'; height: 30px; line-height: 25px; justify-content: center;align-items: center;">
             <Button label="" icon="pi pi-angle-left" iconPos="right" :style="{backgroundColor: leftHover?'rgba(176,196,222,0.5)': 'lightsteelblue',borderColor: 'aliceblue',marginRight:'15px'}"   @click="prevPage" @mouseover="leftHover = true" @mouseleave="leftHover = false" />
@@ -149,7 +149,6 @@ import Toast from 'primevue/toast'
 // import markdownItKatex from 'markdown-it-katex'
 import 'katex/dist/katex.min.css';
 // import { renderMarkdown } from '../utils/markdownCompile.js';
-import CodeBlockRenderer from './CodeBlockRenderer.vue'
 import hljs from 'highlight.js';
 import 'highlight.js/styles/default.css';
 import { marked } from 'marked';
@@ -170,8 +169,7 @@ export default {
         Dropdown,
         Dialog,
         InputText,
-        Toast,
-        CodeBlockRenderer
+        Toast
     },
     computed: {
         ...mapGetters(["selectSubmitted","currentData", "pageCount", "currentPage","ratingStandard", "pageInfo", "categoryList", "tagList","dataInfoList"]),

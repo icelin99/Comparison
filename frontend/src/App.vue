@@ -9,21 +9,14 @@
 </template>
 
 <script>
-
-import DataSetProgress from './components/DatasetProgress.vue'
-import ImageModel from './components/ImageModel.vue'
 import EvaHeader from './components/EvaHeader.vue'
 import LoadingComponent from './components/LoadingComponent.vue'
-import MenuBar from './components/MenuBar.vue'
 
 export default {
   name: 'App',
   components: {
-    DataSetProgress,
-    ImageModel,
     EvaHeader,
-    LoadingComponent,
-    MenuBar
+    LoadingComponent
   },
   mounted() {
     this.$store.dispatch('updateIsLoading', false); // 挂载完成，隐藏loading

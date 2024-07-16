@@ -1,5 +1,5 @@
 <template>
-    <div class="header">MLLM Evaluation - {{ dataset }}
+    <div class="header">MLLM Evaluation - {{ datasetName }}
         <Button icon="pi pi-spin pi-cog" v-if="!selectSubmitted" @click="showSidebar = true" class="setting-btn" />
         <Button class="clear-btn" v-if="selectSubmitted" @click="clearClick">清空所选项并跳转到主页面</Button>
         <Sidebar v-model:visible="showSidebar" header="功能列表" position="right">
@@ -18,9 +18,6 @@
                     <div  class="sidebar-item">
                         <Button @click="goMarkdown" >Markdown 编译</Button>
                     </div>
-                    <!-- <div  class="sidebar-item">
-                        <Button @click="goMarkdownShow" >Markdown 编译显示</Button>
-                    </div> -->
 
             </div>
         </Sidebar>
@@ -92,10 +89,7 @@
             </div>
         </Dialog>
         <Dialog v-model:visible="showMarkdown" modal header="Markdown编辑器" :style="{ width: '80rem' }" >
-            <MardownEditor />
-        </Dialog>
-        <Dialog v-model:visible="compileMarkdown" modal header="Markdown" :style="{ width: '60rem' }" >
-            <CodeBlockRenderer/>
+            <MarkdownEditor />
         </Dialog>
         <Dialog v-model:visible="showDelete" modal header="输入待删除的dataset名字或者result地址" :style="{ width: '30rem' }" >
             <div class="mt-3 mb-3">
@@ -150,8 +144,7 @@ import Dropdown from "primevue/dropdown";
 import MultiSelect from "primevue/multiselect";
 import Message from "primevue/message";
 import Toast from "primevue/toast";
-import MardownEditor from "./MardownEditor.vue";
-import CodeBlockRenderer from "./CodeBlockRenderer.vue";
+import MarkdownEditor from "./MarkdownEditor.vue";
 
 // import { download } from "@/utils/download";
 
@@ -168,11 +161,10 @@ export default {
         MultiSelect,
         Message,
         Toast,
-        MardownEditor,
-        CodeBlockRenderer,
+        MarkdownEditor,
     },
     computed: {
-        ...mapGetters(["alreadySubmit","dataset","selectSubmitted"])
+        ...mapGetters(["datasetName","selectSubmitted"])
     },
     watch: {
     },
@@ -214,8 +206,9 @@ export default {
     },
     methods: {
         clearClick() {
-            this.$store.dispatch("updateAlreadySubmit", false);
-            console.log("click alrady submit state",this.alreadySubmit);
+            this.$store.dispatch("updateSelectSubmitted", false);
+            this.$store.dispatch("updateDatasetName",null)
+            console.log("click alrady submit state",this.selectSubmitted);
             this.showSidebar = false;
             this.$router.push({name: 'Home'})
         },
@@ -428,9 +421,6 @@ export default {
         goMarkdown() {
             this.showMarkdown = true;
         },
-        goMarkdownShow() {
-            this.compileMarkdown = true;
-        },
         goDelete() {
             this.showDelete = true;
         },
@@ -579,4 +569,4 @@ export default {
     margin-bottom: 1.5rem;
 }
 </style>
-    
+    ./MarkdownEditor.vueimport store from "@/store";

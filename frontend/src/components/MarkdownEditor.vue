@@ -18,7 +18,6 @@ import markdownItContainer from 'markdown-it-container';
 import 'katex/dist/katex.min.css';
 import Katex from 'katex';
 // import MathJax from 'mathjax';
-import CodeBlockRenderer from '../components/CodeBlockRenderer.vue'
 import markdownItKatex from "markdown-it-katex";
 import showdown from 'showdown';
 import showdownKatex from 'showdown-katex';
@@ -31,7 +30,6 @@ import hljs from 'highlight.js';
   
 export default {
     components: {
-      CodeBlockRenderer
     },
     data() {
       return {

@@ -206,7 +206,6 @@
     // import markdownItKatex from 'markdown-it-katex'
     import 'katex/dist/katex.min.css';
     // import { renderMarkdown } from '../utils/markdownCompile.js';
-    import CodeBlockRenderer from './CodeBlockRenderer.vue'
     import hljs from 'highlight.js';
     import 'highlight.js/styles/default.css';
     import { marked } from 'marked';
@@ -232,7 +231,6 @@
             Dialog,
             InputText,
             Toast,
-            CodeBlockRenderer,
             Galleria
         },
         computed: {
@@ -1384,7 +1382,18 @@
         width: 100%;
         background-color: #f5f5f5;
     }
-
+    ::v-deep .p-galleria .p-galleria-thumbnail-container .p-galleria-thumbnail-next {
+        color: #3d3d3d;
+    }
+    ::v-deep .p-galleria .p-galleria-thumbnail-container .p-galleria-thumbnail-prev {
+        color: #3d3d3d;
+    }
+    ::v-deep .p-galleria .p-galleria-thumbnail-container .p-galleria-thumbnail-prev:hover {
+        color: #696969;
+    }
+    ::v-deep .p-galleria .p-galleria-thumbnail-container .p-galleria-thumbnail-next:hover {
+        color: #696969;
+    }
     
     </style>
         

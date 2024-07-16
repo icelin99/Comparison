@@ -10,7 +10,7 @@ export default createStore({
         pageCount: parseInt(localStorage.getItem("pageCount"),10),
         alreadySubmit: false,
         isLoading: true,
-        dataset: null,
+        datasetName: null,
         categoryList: [],
         tagList: [],
         modelList: [],
@@ -60,9 +60,9 @@ export default createStore({
             console.log("loading",loading);
             state.isLoading = loading;
         },
-        set_dataset(state,dataset) {
+        set_datasetName(state,dataset) {
             console.log("store dataset",dataset)
-            state.dataset = dataset;
+            state.datasetName = dataset;
         },
         set_category(state, list) {
             state.categoryList = list;
@@ -104,8 +104,8 @@ export default createStore({
         updateIsLoading({commit}, loading) {
             commit('set_loading', loading);
         },
-        updateDataset({commit},name) {
-            commit('set_dataset',name);
+        updateDatasetName({commit},name) {
+            commit('set_datasetName',name);
         },
         updateCategoryList({commit}, list) {
             commit('set_category',list);
@@ -130,7 +130,7 @@ export default createStore({
         pageInfo: state => state.pageInfo,
         alreadySubmit: state => state.alreadySubmit,
         loading: state => state.isLoading,
-        dataset: state => state.dataset,
+        datasetName: state => state.datasetName,
         categoryList: state => state.categoryList,
         tagList: state => state.tagList,
         modelList: state => state.modelList,
